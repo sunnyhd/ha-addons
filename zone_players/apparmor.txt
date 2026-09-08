@@ -1,0 +1,134 @@
+#include <tunables/global>
+
+# Der Name unten ist ein Platzhalter: der Supervisor schreibt ihn beim Laden auf
+# den installierten Slug um, und der Slug traegt ein installationsabhaengiges
+# Praefix (`local_` fuer ein lokales Add-on, den Repository-Hash fuer eins aus
+# dem Store). Nichts in dieser Datei darf das Profil daher ueber seinen Namen
+# ansprechen -- weshalb die Empfangsregeln der Kindprofile ohne Peer stehen.
+#
+# Adaptiert vom Basis-Profil des local-audio-addon. Zwei Dinge sind hier anders:
+# die gebuendelten Daemons dbus und avahi sind in diesem Add-on abgeschaltet
+# (das Image entfernt sie aus der s6-user-Kette), also fehlen ihre Kindprofile;
+# und es laeuft ein sendspin-cli je Zone statt einem einzigen -- alle unter
+# demselben Kindprofil, das eine Instanz auch bekaeme.
+profile zone_players flags=(attach_disconnected,mediate_deleted) {
+  #include <abstractions/base>
+
+  # Ein Add-on mit fester Funktion: kein mount/umount/remount, kein
+  # dac_read_search, kein sys_admin. Der Supervisions-Baum, bashio und das
+  # optionslesende run-Skript laufen als root und wechseln zu keinem anderen
+  # Nutzer, also ist CAP_KILL die einzige Capability dieses aeusseren Profils.
+  # s6-supervise signalisiert jeden longrun zum Stoppen -- SIGTERM und der
+  # SIGKILL des timeout-kill dahinter -- und beides ist ein CAP_KILL-Check.
+  capability kill,
+
+  file,
+
+  # s6 ueberwacht den Dienst und reicht einen Container-Stop weiter. Das
+  # Stop-Signal kommt von der unconfined Container-Runtime, die die
+  # base-Abstraktion bereits zu empfangen erlaubt. Das Kindprofil unten
+  # wiederholt dieses Set als sein `signal (receive)` -- sie muessen passen,
+  # sonst wird ein Signal bei der Zustellung verweigert.
+  signal (send) set=(kill,term,int,hup,cont,usr1,usr2),
+
+  # s6-overlay v3: init, die execline- und s6-Tools auf dem PATH, und der
+  # Supervisions-Zustand unter /run.
+  /init ix,
+  /bin/** ix,
+  /usr/bin/** ix,
+  /usr/sbin/** ix,
+  /command/** ix,
+  /package/** ix,
+  /etc/s6-overlay/** r,
+  /run/{s6,s6-rc*,service}/** rwix,
+  /run/s6-linux-init-container-results/** rw,
+
+  # bashio liest die Optionen ueber die Supervisor-API; die gemeinsame
+  # Shell-Bibliothek dieses Add-ons (common.sh) und jq machen daraus die Werte,
+  # die das run-Skript in die Player-Konfigurationen schreibt.
+  /usr/lib/bashio/** ix,
+  /usr/lib/zone-players/** r,
+
+  # bashios Options-Abruf ist ein HTTP-Call an den Supervisor; die
+  # Namensaufloesung dafuer braucht das dgram-Paar. pactl erreicht die
+  # PulseAudio ueber einen Unix-Socket, die Player erreichen den
+  # Music-Assistant-Server ueber inet.
+  network inet stream,
+  network inet6 stream,
+  network inet dgram,
+  network inet6 dgram,
+  network unix stream,
+  network unix dgram,
+
+  # /run/zone-players haelt die gerenderten Konfigurationen und die
+  # Control-Sockets je Zone; /data ist das persistente Volume (Instanz-ID und
+  # der Zustand je Zone unter /data/zones); s6 schreibt und sperrt den Rest von
+  # /run. pactl spricht die hereingereichte PulseAudio unter /run/audio an --
+  # von der blanket `file,`-Regel oben abgedeckt.
+  /run/zone-players/** rw,
+  /data/** rw,
+  /run/** rwk,
+  /tmp/** rw,
+
+  # Nichts hier liest die Shadow-Dateien oder aendert die Konto-Datenbanken, und
+  # die `file`-Regel oben wuerde beides sonst erlauben.
+  deny /etc/shadow rw,
+  deny /etc/gshadow rw,
+  deny /etc/{passwd,group} w,
+
+  # Der Player ist enger eingesperrt als dieses Profil.
+  /usr/bin/sendspin-cli cx,
+
+  # Ein sendspin-cli je Zone, alle unter diesem einen Kindprofil. Es braucht
+  # keine Capability: es laeuft als root, und was es oeffnet, gehoert root.
+  profile /usr/bin/sendspin-cli flags=(attach_disconnected,mediate_deleted) {
+    #include <abstractions/base>
+    #include <abstractions/nameservice>
+
+    signal (receive) set=(kill,term,int,hup,cont,usr1,usr2),
+
+    /usr/bin/sendspin-cli mr,
+
+    # Ein wss:// Server-Wert braucht den Trust-Store.
+    /etc/ssl/** r,
+    /usr/share/ca-certificates/** r,
+
+    # Der PulseAudio-Client legt seinen Cookie unter dem (root-)Home ab.
+    owner /root/.config/ w,
+    owner /root/.config/pulse/ w,
+    owner /root/.config/pulse/** rw,
+
+    # Die eigene gerenderte Konfiguration, der Control-Socket und der
+    # persistente Zustand je Zone. k fuer die Lock-Datei des Sockets.
+    /run/zone-players/** rwk,
+    /data/zones/** rw,
+
+    # ALSA: die Konfiguration der Bibliothek und das Plugin, das zu PulseAudio
+    # brueckt.
+    /usr/lib/**/alsa-lib/*.so mr,
+    /usr/share/alsa/** r,
+    /etc/alsa/** r,
+    /etc/asound.conf r,
+    /dev/snd/ r,
+    /dev/snd/** rw,
+    @{PROC}/asound/** r,
+    /sys/class/sound/** r,
+    /sys/devices/**/sound/** r,
+
+    # Home Assistants PulseAudio, die `audio: true` hereinreicht und ueber die
+    # jeder Player seinen `pulse:<sink>`-Ausgang bespielt.
+    /etc/pulse/** r,
+    /run/audio/** rw,
+    /dev/shm/** rw,
+
+    # Der Websocket-Server (Port 8928 aufwaerts, einer je Zone) und die
+    # Verbindungen, die er nach aussen aufbaut; UDP zum Aufloesen des
+    # `server`-Werts.
+    network inet stream,
+    network inet6 stream,
+    network inet dgram,
+    network inet6 dgram,
+    network unix stream,
+    network unix dgram,
+  }
+}

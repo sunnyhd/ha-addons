@@ -33,6 +33,10 @@ Die Zonen werden in der Add-on-Konfiguration eingetragen, so viele wie das
 Interface Ausgangspaare hat. Keine Datei auf dem Host, kein Docker-Zugriff,
 kein abgeschalteter Schutzmodus.
 
+Die vollständige Anleitung samt Optionen, Ausgangs-Zuordnung und Stolpersteinen
+(geräteabhängige Kanalordnung, USB-Strom bei bus-powered Interfaces, HAOS in
+einer VM) steht in **DOCS.md** bzw. im Dokumentations-Tab des Add-ons.
+
 ## Stand
 
 Die Manifeste sind erzeugt und auf gültiges YAML geprüft, gegen einen laufenden
