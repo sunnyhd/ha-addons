@@ -43,16 +43,24 @@ jobs:
         if: steps.v.outputs.latest != '' && steps.v.outputs.latest != steps.v.outputs.current
         run: |
           set -euo pipefail
-          L="${{ steps.v.outputs.latest }}"
-          C="${{ steps.v.outputs.current }}"
+          L="${{ steps.v.outputs.latest }}"        # neuer Image-Tag (Upstream)
+          C="${{ steps.v.outputs.current }}"        # bisheriger Image-Tag
+          # FROM folgt dem Image-Tag.
           sed -i "s#^FROM ghcr.io/music-assistant/local-audio-addon:.*#FROM ghcr.io/music-assistant/local-audio-addon:${L}#" \
             zone_players/Dockerfile
-          sed -i "s/^version: \".*\"/version: \"${L}\"/" zone_players/config.yaml
-          # CHANGELOG-Eintrag voranstellen (unter die Ueberschrift).
+          # config.yaml version ist die EIGENE Add-on-Version, unabhaengig vom
+          # Image-Tag -- sie bekommt einen Patch-Bump, damit der Supervisor
+          # "Update verfuegbar" zeigt.
+          cur=$(sed -n 's/^version: "\(.*\)"/\1/p' zone_players/config.yaml)
+          maj=${cur%%.*}; rest=${cur#*.}; min=${rest%%.*}; pat=${rest#*.}
+          new="${maj}.${min}.$((pat + 1))"
+          sed -i "s/^version: \".*\"/version: \"${new}\"/" zone_players/config.yaml
+          echo "addon_new=$new" >> "$GITHUB_OUTPUT"
+          # CHANGELOG-Eintrag unter der eigenen Add-on-Version voranstellen.
           tmp=$(mktemp)
           {
             head -n 1 zone_players/CHANGELOG.md
-            printf '\n## %s\n\n- Basis-Image auf %s angehoben (war %s). Vor dem Merge testen:\n  rebuild, dann 5 Zonen-Sinks und 5 Handshakes pruefen.\n' "$L" "$L" "$C"
+            printf '\n## %s\n\n- Basis-Image auf %s angehoben (war %s). Vor dem Merge testen:\n  rebuild, dann Zonen-Sinks und einen Handshake je Zone pruefen.\n' "$new" "$L" "$C"
             tail -n +2 zone_players/CHANGELOG.md
           } > "$tmp"
           mv "$tmp" zone_players/CHANGELOG.md
@@ -63,7 +71,7 @@ jobs:
         uses: peter-evans/create-pull-request@v6
         with:
           branch: "bump/local-audio-addon-${{ steps.v.outputs.latest }}"
-          title: "Basis-Image auf ${{ steps.v.outputs.latest }} anheben"
+          title: "Basis-Image auf ${{ steps.v.outputs.latest }} (Add-on ${{ steps.bump.outputs.addon_new }})"
           commit-message: |
             Basis-Image auf ${{ steps.v.outputs.latest }} anheben
 

@@ -1,4 +1,4 @@
-# sys.tec Home Assistant Add-ons
+# Home Assistant Add-ons
 
 Ein Add-on-Repository für Home Assistant. Einmal im Add-on-Store hinterlegt,
 erscheinen alle Add-ons daraus dort — mit Update-Benachrichtigungen wie bei

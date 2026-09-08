@@ -5,8 +5,11 @@
 #
 # Kein ARG BUILD_FROM: das setzt der Supervisor auf das Home-Assistant-Basisimage
 # der Architektur, und darin gibt es keinen Player. Der Tag steht deshalb
-# ausgeschrieben; er wird beim Anheben von `version` in config.yaml mitgezogen.
-# Das Manifest ist multi-arch, `docker build` zieht also die passende Variante.
+# ausgeschrieben. Er ist die Version des Upstream-*Images* -- getrennt von der
+# eigenen Add-on-Version in config.yaml, die ihren eigenen Lauf hat. Der
+# upstream-bump-Workflow hebt beide an: diesen Tag auf den neuen Image-Release,
+# die Add-on-Version um einen Patch. Das Manifest ist multi-arch, `docker build`
+# zieht also die passende Variante.
 FROM ghcr.io/music-assistant/local-audio-addon:0.1.13
 
 # Die vier Dienste des Basisimages abschalten. sendspin-cli startet genau einen
