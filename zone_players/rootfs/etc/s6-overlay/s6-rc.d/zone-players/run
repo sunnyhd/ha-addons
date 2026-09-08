@@ -46,10 +46,13 @@ read_config() {
     fi
 
     # Eine Newline im Wert wuerde Konfigurationsschluessel der eigenen Wahl in
-    # die gerenderte Datei schreiben.
-    local name value
-    for name in SERVER MASTER LOG_LEVEL BUFFER_MS "${ZONE_NAME[@]}" "${ZONE_OUTPUT[@]}"; do
-        value=${!name-$name}
+    # die gerenderte Datei schreiben. Geprueft werden die Werte selbst -- der
+    # Umweg ueber ${!name} war hier falsch, weil die Zonennamen Werte sind und
+    # keine Variablennamen: "Küche" als Variablenname ist ein Syntaxfehler, und
+    # bash wiederholt ihn, solange die Schleife laeuft.
+    local value
+    for value in "${SERVER}" "${MASTER}" "${LOG_LEVEL}" "${BUFFER_MS}" \
+        "${ZONE_NAME[@]}" "${ZONE_OUTPUT[@]}"; do
         if [ "${value}" != "${value%%$'\n'*}" ]; then
             bashio::exit.nok 'Ein Konfigurationswert enthaelt einen Zeilenumbruch.'
         fi
