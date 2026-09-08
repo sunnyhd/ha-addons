@@ -11,6 +11,11 @@ dem auch die offiziellen Add-ons kommen.
 
 ## Einbinden
 
+> **Nicht über HACS.** Dies sind Home-Assistant-**Add-ons**, keine
+> Integrationen, Lovelace-Karten oder Themes — sie werden über den **Add-on-Store**
+> des Supervisors eingebunden, nicht über HACS. Auf HAOS/Supervised verfügbar,
+> nicht auf Home Assistant Container/Core.
+
 **Einstellungen → Add-ons → Add-on-Store → ⋮ → Repositories**, dann diese URL
 eintragen:
 
