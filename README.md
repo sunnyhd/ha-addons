@@ -25,17 +25,33 @@ ohne Anmeldung.
 
 ### Local Audio Zones
 
-Ein Add-on, das alles macht: es findet den mehrkanaligen Ausgang, liest dessen
-Kanalmap, legt die Zonen-Sinks selbst an und startet je Zone einen Player —
-alle in einem Container, jeder auf seinem eigenen Port.
+Teilt einen mehrkanaligen Audio-Ausgang in unabhängige Stereo-Zonen und spielt
+jede als eigenen Sendspin-Player für Music Assistant. Ein achtkanaliges
+Interface wird so zu vier Stereo-Zonen — jede mit eigener Lautstärke,
+Warteschlange und Gruppenzugehörigkeit — plus einer Zone über alle Ausgänge.
 
-Die Zonen werden in der Add-on-Konfiguration eingetragen, so viele wie das
-Interface Ausgangspaare hat. Keine Datei auf dem Host, kein Docker-Zugriff,
-kein abgeschalteter Schutzmodus.
+Beim Start liest das Add-on die Kanalmap des über `audio: true` hereingereichten
+Ausgangs, legt je Ausgangspaar einen `module-remap-sink` in Home Assistants
+PulseAudio an und startet einen `sendspin-cli` je Zone. Alle Player laufen in
+einem Container, jeder auf einem eigenen Port (8928 aufwärts) und mit eigener,
+stabiler `SENDSPIN_ID`. Ein Watchdog startet abgestürzte Player neu und legt
+die Sinks erneut an, falls ein Neustart des Audio-Plugins sie entfernt.
 
-Die vollständige Anleitung samt Optionen, Ausgangs-Zuordnung und Stolpersteinen
-(geräteabhängige Kanalordnung, USB-Strom bei bus-powered Interfaces, HAOS in
-einer VM) steht in **DOCS.md** bzw. im Dokumentations-Tab des Add-ons.
+**Konfiguration** (vollständig in der Add-on-Oberfläche, keine Datei auf dem
+Host, kein Docker-Zugriff, kein abgeschalteter Schutzmodus):
+
+| Option | Bedeutung |
+| --- | --- |
+| `server` | Adresse des Music-Assistant-Servers (`host:port`, meist `<ha-ip>:8927`). **Pflicht** — ohne Host-Netz kein mDNS, der Player wählt sich ein. |
+| `zones` | Liste je Zone: `name` (Anzeigename in MA) und `output` (Ausgangspaar, z. B. `out_3_4_rear`). Beliebig erweiterbar. |
+| `master_sink` | Welcher mehrkanalige Ausgang aufgeteilt wird. Leer = erster mit mehr als zwei Kanälen. |
+| `buffer_ms` | Puffer je Player in Millisekunden, gegen Aussetzer auf langsamen Systemen. |
+| `log_level` | `debug` … `error`. |
+
+Ausgangs-Zuordnung, geräteabhängige Kanalordnung, USB-Strom bei bus-powered
+Interfaces und der Betrieb unter HAOS-in-einer-VM sind in
+[`zone_players/DOCS.md`](zone_players/DOCS.md) bzw. im Dokumentations-Tab des
+Add-ons beschrieben.
 
 ## Wartung
 
