@@ -6,6 +6,10 @@ interface becomes four stereo zones -- one player per output pair, each with its
 own volume, queue and group membership -- plus one zone that plays to every
 output at once.
 
+> Home Assistant renamed **Add-ons** to **Apps** in the UI. This page uses
+> "app" for the installed thing and UI actions, and keeps "add-on" only for the
+> packaging concept (the add-on repository, the `config.yaml` manifest).
+
 ## Setup
 
 1. **Plug the interface in and set the profile.** On the Home Assistant console:
@@ -18,14 +22,15 @@ output at once.
 
    A device on `analog-stereo` has two channels and nothing to split.
 
-2. **Install the add-on**, set **Music Assistant server** to `<ha-ip>:8927`, and
-   add one zone per output pair you use (name + output).
+2. **Install the app** (Settings → Apps → this repository → *Local Audio Zones*
+   → Install), set **Music Assistant server** to `<ha-ip>:8927`, and add one zone
+   per output pair you use (name + output).
 
 3. **Start it.** The log names the output it found, its channel map and every
    zone it started.
 
 No change on the host, no Docker access, no disabled protection mode -- the
-add-on creates the sinks itself through the PulseAudio that Home Assistant maps
+app creates the sinks itself through the PulseAudio that Home Assistant maps
 in.
 
 ## Options
@@ -168,13 +173,13 @@ gh api repos/music-assistant/local-audio-addon/releases/latest --jq .tag_name
 
 **Test after every bump** -- a bump is not done until this holds:
 
-1. The add-on **rebuild** completes. The assertion in the Dockerfile catches a
+1. The app **rebuild** completes. The assertion in the Dockerfile catches a
    restructuring of the s6 services in the base image as a **red build**, rather
    than letting it pass silently (a renamed service would otherwise start beside
    ours and bring back the port-8928 fight).
 2. `docker exec hassio_audio pactl list sinks short` shows the zone sinks
    (`out_*`).
-3. The add-on log shows one `handshake complete` per zone.
+3. The app log shows one `handshake complete` per zone.
 4. A test tone per zone comes out of the expected output.
 
 Multi-channel is deliberately *outside* the Music Assistant core per upstream

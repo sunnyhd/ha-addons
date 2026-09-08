@@ -1,22 +1,24 @@
 # Home Assistant Add-ons
 
-An add-on repository for Home Assistant. Once added to the Add-on Store, every
-add-on it contains shows up there — with update notifications like any other
-add-on.
+An add-on repository for Home Assistant. Once added under **Apps** (Home
+Assistant's add-on store, formerly "Add-on Store"), every add-on it contains
+shows up there — with update notifications like any other add-on.
 
 **Not via HACS.** HACS handles custom integrations, Lovelace cards and themes;
-add-ons run through the Supervisor and therefore through the Add-on Store. That
-is not a detour but the intended path: the store here is the same mechanism the
+add-ons run through the Supervisor and therefore through **Apps** (the add-on
+store). That is not a detour but the intended path: it is the same mechanism the
 official add-ons come through.
 
 ## Adding the repository
 
 > **Not via HACS.** These are Home Assistant **add-ons**, not integrations,
-> Lovelace cards or themes — they are added through the Supervisor's **Add-on
-> Store**, not through HACS. Available on HAOS/Supervised, not on Home Assistant
-> Container/Core.
+> Lovelace cards or themes — they are added through Home Assistant's **Apps**
+> section (the add-on store, formerly "Add-on Store"), not through HACS.
+> Available on HAOS/Supervised, not on Home Assistant Container/Core.
 
-**Settings → Add-ons → Add-on Store → ⋮ → Repositories**, then enter this URL:
+**Settings → Apps → ⋮ (top right) → Repositories**, paste the URL below and
+click **Add** (on older Home Assistant: **Settings → Add-ons → Add-on Store →
+⋮ → Repositories**):
 
 ```
 https://github.com/sunnyhd/ha-addons
@@ -66,7 +68,7 @@ the Sendspin source role; see DOCS.md.
 
 Output mapping, device-dependent channel order, USB power on bus-powered
 interfaces and running under HAOS-in-a-VM are described in
-[`zone_players/DOCS.md`](zone_players/DOCS.md) or in the add-on's Documentation
+[`zone_players/DOCS.md`](zone_players/DOCS.md) or in the app's Documentation
 tab.
 
 ## Maintenance
