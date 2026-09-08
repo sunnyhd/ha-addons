@@ -111,3 +111,43 @@ Einstellungen aller Zonen landeten sonst auf der zuletzt verbundenen.
 Das Add-on nutzt das Image von
 [music-assistant/local-audio-addon](https://github.com/music-assistant/local-audio-addon),
 mit seinem eigenen Dienst an Stelle des Einzel-Player-Dienstes.
+
+## Wartung / Aktualisierung
+
+Dieses Add-on erbt sein Image vom Upstream
+[music-assistant/local-audio-addon](https://github.com/music-assistant/local-audio-addon)
+(`FROM ghcr.io/music-assistant/local-audio-addon:<tag>` im Dockerfile). Daraus
+kommen `sendspin-cli`, `pactl`, s6-overlay und das sicherheitsgepruefte
+Basis-Image. Die Zonen-Logik dieses Add-ons ist davon unabhaengig.
+
+**Automatisch:** Der Workflow `.github/workflows/upstream-bump.yml` prueft
+woechentlich (und auf Knopfdruck) den neuesten Upstream-Release und oeffnet bei
+einer neuen Version einen Pull Request, der den `FROM`-Tag **und** `version` in
+config.yaml gemeinsam anhebt und einen CHANGELOG-Eintrag mit Test-Checkliste
+ergaenzt. Damit der Workflow PRs oeffnen darf, muss in den Repo-Einstellungen
+einmalig **Settings → Actions → General → "Allow GitHub Actions to create and
+approve pull requests"** aktiviert sein.
+
+**Manuell (Rueckfallebene):**
+
+```sh
+# neuesten Upstream-Tag ermitteln
+gh api repos/music-assistant/local-audio-addon/releases/latest --jq .tag_name
+# im Dockerfile FROM ...:<neu> und in config.yaml version: "<neu>" setzen (gleich halten)
+```
+
+**Nach jedem Bump testen** -- ein Bump ist nicht fertig, bevor das steht:
+
+1. Add-on **rebuild** laeuft durch. Die Assertion im Dockerfile faengt eine
+   Umstrukturierung der s6-Dienste im Basis-Image als **roten Build** ab, statt
+   sie still durchzulassen (ein umbenannter Dienst wuerde sonst neben unserem
+   starten und den Port-8928-Streit zurueckbringen).
+2. `docker exec hassio_audio pactl list sinks short` zeigt die Zonen-Sinks
+   (`out_*`).
+3. Das Add-on-Log zeigt einen `handshake complete` je Zone.
+4. Ein Testton je Zone kommt auf dem erwarteten Ausgang.
+
+Multichannel ist laut Upstream bewusst *ausserhalb* des Music-Assistant-Cores
+(PR music-assistant/server#5132 wurde "Addressed outside Music Assistant Core"
+geschlossen). Dieses Community-Add-on ist damit der vorgesehene Ort fuer die
+Zonen-Aufteilung; der Upstream bleibt der Einzel-Player.

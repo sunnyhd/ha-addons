@@ -1,0 +1,85 @@
+# Beobachtet den Upstream local-audio-addon und oeffnet einen PR, sobald eine
+# neue Version veroeffentlicht ist. Der PR hebt zwei Stellen GEMEINSAM an: den
+# `FROM`-Tag im Dockerfile (das Image, aus dem sendspin-cli/pactl/s6 kommen) und
+# `version` in config.yaml -- die beiden muessen in Sync bleiben.
+#
+# Selbst-enthalten: laeuft in den Actions dieses Repos, braucht keinen externen
+# Dienst (kein Renovate/Dependabot-App-Zwang). Die Versionsquelle ist der
+# neueste GitHub-Release von music-assistant/local-audio-addon; dessen Tag
+# (`vX.Y.Z`) ist zugleich der Image-Tag (`X.Y.Z`).
+name: Upstream-Version pruefen
+
+on:
+  schedule:
+    - cron: "0 6 * * 1"   # jeden Montag 06:00 UTC
+  workflow_dispatch: {}    # zum manuellen Ausloesen
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  bump:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Versionen ermitteln
+        id: v
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          latest=$(gh api repos/music-assistant/local-audio-addon/releases/latest \
+                     --jq .tag_name | sed 's/^v//')
+          current=$(sed -n 's#^FROM ghcr.io/music-assistant/local-audio-addon:\(.*\)$#\1#p' \
+                     zone_players/Dockerfile)
+          echo "latest=$latest"   >> "$GITHUB_OUTPUT"
+          echo "current=$current" >> "$GITHUB_OUTPUT"
+          echo "Upstream: $latest   aktuell gepinnt: $current"
+
+      - name: Dateien anheben
+        id: bump
+        if: steps.v.outputs.latest != '' && steps.v.outputs.latest != steps.v.outputs.current
+        run: |
+          set -euo pipefail
+          L="${{ steps.v.outputs.latest }}"
+          C="${{ steps.v.outputs.current }}"
+          sed -i "s#^FROM ghcr.io/music-assistant/local-audio-addon:.*#FROM ghcr.io/music-assistant/local-audio-addon:${L}#" \
+            zone_players/Dockerfile
+          sed -i "s/^version: \".*\"/version: \"${L}\"/" zone_players/config.yaml
+          # CHANGELOG-Eintrag voranstellen (unter die Ueberschrift).
+          tmp=$(mktemp)
+          {
+            head -n 1 zone_players/CHANGELOG.md
+            printf '\n## %s\n\n- Basis-Image auf %s angehoben (war %s). Vor dem Merge testen:\n  rebuild, dann 5 Zonen-Sinks und 5 Handshakes pruefen.\n' "$L" "$L" "$C"
+            tail -n +2 zone_players/CHANGELOG.md
+          } > "$tmp"
+          mv "$tmp" zone_players/CHANGELOG.md
+          echo "changed=true" >> "$GITHUB_OUTPUT"
+
+      - name: PR oeffnen
+        if: steps.bump.outputs.changed == 'true'
+        uses: peter-evans/create-pull-request@v6
+        with:
+          branch: "bump/local-audio-addon-${{ steps.v.outputs.latest }}"
+          title: "Basis-Image auf ${{ steps.v.outputs.latest }} anheben"
+          commit-message: |
+            Basis-Image auf ${{ steps.v.outputs.latest }} anheben
+
+            FROM-Tag und config.yaml version gemeinsam angehoben (war
+            ${{ steps.v.outputs.current }}). sendspin-cli und pactl kommen aus
+            diesem Image; die Zonen-Logik bleibt unveraendert.
+          body: |
+            Automatischer Bump auf den neuesten Upstream-Release
+            **${{ steps.v.outputs.latest }}** (war ${{ steps.v.outputs.current }}).
+
+            Geaendert: `zone_players/Dockerfile` (FROM), `zone_players/config.yaml`
+            (version), `zone_players/CHANGELOG.md`.
+
+            **Vor dem Merge testen:**
+            - [ ] Add-on rebuild laeuft durch (die Dockerfile-Assertion faengt eine
+                  Umstrukturierung der s6-Dienste als roten Build ab)
+            - [ ] `pactl list sinks short` zeigt die Zonen-Sinks (`out_*`)
+            - [ ] Add-on-Log zeigt einen Handshake je Zone
+            - [ ] Ein Testton je Zone kommt auf dem erwarteten Ausgang
