@@ -76,14 +76,25 @@ Assistant (`remap_topology.py`) — dieselben Kanalpaare, dasselbe
 | **Player name** | Wie die Zone in Music Assistant heißen soll |
 | **Music Assistant server** | Adresse des MA-Servers, `<host>:8927` |
 
-Das dritte Feld ist bei mehr als einer Instanz Pflicht: alle teilen den
-Netzwerk-Namespace des Hosts, und jede, die sich über mDNS anbietet, startet
-ihren eigenen `avahi-daemon` — die würden sich um Port 5353 streiten. Eine
-gesetzte Server-Adresse unterdrückt das Advertisement.
+**Die Server-Adresse ist Pflicht, nicht optional.** Der Grund steckt im Player:
+er lauscht auf dem fest eingebauten Port 8928, und das Add-on-Image reicht
+keinen anderen durch — `sendspin-cli` kennt zwar ein `--port` und sieht in
+seiner Hilfe ausdrücklich zwei Player auf einem Host damit vor, aber das
+run-Skript im Image rendert seine Konfiguration aus einer festen
+Schlüsselliste, in der `port` nicht vorkommt.
 
-Alle drei leer gelassen, spielt eine Instanz über das Audio-Panel wie ein
-einzelner Player. Das ist der brauchbare Anfangszustand zum Prüfen, ob sie
-überhaupt startet.
+Im Netzwerk-Namespace des Hosts kann diesen Port nur **eine** Instanz bekommen.
+Die übrigen scheitern beim Binden, und ein Player, der mit Fehler endet, stoppt
+seinen Container — fünf installierte Zonen wären ein laufender Player und vier
+gestoppte Container. Deshalb läuft hier jede Instanz in ihrem eigenen
+Netzwerk-Namespace (`host_network: false`) und hat damit ihren eigenen Port
+8928.
+
+Der Preis dafür ist mDNS: ohne das Netz des Hosts kann sich ein Player nicht
+anbieten und der Server nicht zurückverbinden. Deshalb wählt der Player sich
+ein, und dafür muss er wissen, wohin — über diese Verbindung läuft danach
+alles. Ohne Server-Adresse wartet er darauf, gefunden zu werden, und nichts
+wird ihn finden.
 
 ## Stand
 

@@ -9,8 +9,7 @@ configuration:
     description: >-
       Which PulseAudio sink this zone plays to, as `pulse:<sink>` — for example
       `pulse:zone_kitchen`. Leave it empty and the player follows this app's
-      Audio panel instead, which is the right setting when only one instance is
-      running. The zone sinks themselves are created in
+      Audio panel instead. The zone sinks themselves are created in
       /mnt/data/supervisor/audio/custom.pa; see the repository README. A
       sound-card name like `hw:1,0` cannot be opened from an app and stops it.
   log_level:

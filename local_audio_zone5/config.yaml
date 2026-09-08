@@ -18,9 +18,11 @@ stage: experimental
 startup: services
 # The image brings its own s6-overlay v3 init.
 init: false
-# The mDNS advertisement, and the inbound websocket the server connects back in
-# on, both need the host's network namespace.
-host_network: true
+# Eigener Netzwerk-Namespace je Instanz: der Player lauscht auf dem festen
+# Port 8928, den im Netz des Hosts nur eine Instanz bekommen koennte. Ohne
+# Host-Netz gibt es kein mDNS, also muss `server` gesetzt sein -- der Player
+# waehlt sich dort ein, statt gefunden zu werden.
+host_network: false
 # Maps Home Assistant's PulseAudio in: an /etc/asound.conf routing `default` to
 # it, a client.conf naming the sink, and the socket under /run/audio. It also
 # gives this app its own Audio selector, which is how a user points it at a USB
