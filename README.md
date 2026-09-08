@@ -54,6 +54,8 @@ access, no disabled protection mode):
 | `buffer_ms` | Buffer per player in milliseconds, against dropouts on slow systems. |
 | `log_level` | `debug` … `error`. |
 
+![The Local Audio Zones configuration page in Home Assistant, with the zone list.](zone_players/images/configuration.png)
+
 **Tested with** an ESI GIGAPORT eX (USB, 8 outputs). The approach is not tied to
 this model, though: the add-on reads the output's channel map at runtime rather
 than assuming a device. Other multi-channel USB interfaces — and in principle

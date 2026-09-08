@@ -42,6 +42,8 @@ in.
 | **Master sink** | Which multi-channel output to split. Empty = automatically the first one with more than two channels. |
 | **Audio buffer** | How much audio each player buffers (ms). Raise it where the sound breaks up. |
 
+![The Local Audio Zones configuration page: the Music Assistant server field, the log level, and the list of zones (name and output pair) with Add.](images/configuration.png)
+
 ## Which output is which
 
 | Zone output | Sockets | Channel positions |
