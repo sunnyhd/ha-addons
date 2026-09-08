@@ -23,12 +23,18 @@ ohne Anmeldung.
 
 ## Enthaltene Add-ons
 
-### Local Audio Zone 1–4
+### Local Audio Zone 1–5
 
 Je ein Sendspin-Player für Music Assistant, der auf **einen** PulseAudio-Sink
 spielt. Mehrere davon teilen ein mehrkanaliges Audio-Interface in unabhängige
 Stereo-Zonen auf: ein Player je Ausgangspaar, jeder mit eigener Lautstärke,
 eigener Warteschlange und eigener Gruppenzugehörigkeit.
+
+Ein achtkanaliges Interface ergibt vier Stereo-Zonen. Die fünfte Instanz ist für
+den Sink gedacht, der auf **alle** Ausgänge zugleich spielt — was ein
+AV-Receiver „Multi Channel Stereo" nennt. Sie ist keine andere Art von Add-on,
+nur eine weitere Instanz: welcher Sink dahintersteht, entscheidet das Feld
+**Audio output**. Wer weniger Zonen braucht, installiert einfach weniger.
 
 Sie laufen das Image von
 [music-assistant/local-audio-addon](https://github.com/music-assistant/local-audio-addon);
