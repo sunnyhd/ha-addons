@@ -82,10 +82,22 @@ options. GIGAPORT eX example:
   **USB 3 port** (delivers more current) or a powered USB hub. On the GIGAPORT
   eX this was exactly the cause of silent outputs.
 
-- **HAOS as a VM with USB passthrough.** USB audio is isochronous and sensitive
-  to virtualization. Passing through the **whole PCI USB controller** is far
-  more reliable than passing a single USB device. If the sound works on
-  bare metal (a laptop) but not in the VM, this is the suspect.
+- **HAOS as a VM (e.g. Proxmox) with USB passthrough.** USB audio is isochronous
+  and fragile over virtualization. Pass the interface's **whole USB host
+  controller through as a PCIe device** -- in Proxmox: the VM's *Hardware → Add →
+  PCI Device*, the USB controller -- rather than passing the single USB device.
+  QEMU's per-device USB passthrough drops isochronous audio far more readily than
+  a passed-through controller. Find the controller the interface hangs off from
+  the device's ALSA name (e.g. `… at usb-0000:06:10.0-…` → PCI `06:10.0`), make
+  sure it sits in its own IOMMU group, and pass that controller; the interface
+  must be plugged into a port on it.
+
+  Caveat, so this is not mistaken for a cure-all: in our ESI GIGAPORT eX case the
+  isochronous stream reached the device fine even over passthrough (the device
+  locked to the clock), and the real fix was USB **power** -- a USB 3 port, see
+  the bullet above. Rule of thumb: if it works on bare metal (a laptop) but not
+  in the VM, controller passthrough is the suspect; if it fails on bare metal
+  too, look at power and cabling.
 
 - **No sound? Check the signal LEDs first.** The 8 signal LEDs show audio present
   per channel. If they light, the signal is arriving -- even with no speakers
