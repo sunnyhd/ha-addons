@@ -1,6 +1,6 @@
 # shellcheck shell=bash
-# Kanalpaare eines mehrkanaligen Ausgangs, die Sinks dazu, und ein Player je
-# Zone. Geteilt zwischen dem Startdienst und allem, was ihn spaeter pruefen will.
+# Channel pairs of a multi-channel output, the sinks for them, and one player per
+# zone. Shared between the startup service and anything that later inspects it.
 
 readonly PULSE_SOCKET=/run/audio/pulse.sock
 readonly STATE_ROOT=/data/zones
@@ -8,9 +8,9 @@ readonly RUN_DIR=/run/zone-players
 readonly INSTANCE_ID_FILE=/data/instance-id
 readonly BASE_PORT=8928
 
-# Die Paare, aus denen eine Stereo-Zone werden kann, mit dem Namensteil, den der
-# Sink davon traegt. Dieselbe Aufstellung wie in zones/make-zones.sh und wie im
-# nie veroeffentlichten local_audio-Provider von Music Assistant.
+# The pairs a stereo zone can be made from, with the name part its sink carries.
+# The same set as in zones/make-zones.sh and as in the never-released local_audio
+# provider of Music Assistant.
 readonly ZONE_PAIRS='front-left:front-right:front
 rear-left:rear-right:rear
 front-center:lfe:center_sub
@@ -20,15 +20,15 @@ zone::log() {
     printf '%s\n' "$*" >&2
 }
 
-# Alle pactl-Aufrufe gehen an die PulseAudio, die `audio: true` hereinreicht --
-# nicht an eine, die dieser Container selbst startet. Er startet keine.
+# Every pactl call goes to the PulseAudio that `audio: true` maps in -- not to
+# one this container starts itself. It starts none.
 zone::pactl() {
     LC_ALL=C PULSE_SERVER="unix:${PULSE_SOCKET}" timeout 5 pactl "$@" 2> /dev/null
 }
 
-# Der Socket erscheint, wenn das Audio-Plugin so weit ist. Ohne ihn ist jede
-# weitere Zeile hier sinnlos, also wird gewartet statt gescheitert -- ein
-# Add-on, das eine Sekunde vor dem Plugin startet, soll nicht aufgeben.
+# The socket appears once the audio plugin is ready. Without it every further
+# line here is pointless, so we wait rather than fail -- an add-on that starts a
+# second before the plugin should not give up.
 zone::wait_for_pulse() {
     local i
     for ((i = 0; i < 120; i++)); do
@@ -37,25 +37,24 @@ zone::wait_for_pulse() {
         fi
         sleep 1
     done
-    zone::log 'PulseAudio ist nach zwei Minuten nicht erreichbar.'
+    zone::log 'PulseAudio is not reachable after two minutes.'
     return 1
 }
 
-# Eine Kennung, die diesen Container ueberdauert und ihn von jedem anderen
-# unterscheidet. Ein Music-Assistant-Server legt Lautstaerke, Gruppen und
-# Pairing je Player-ID ab; leiten zwei Player dieselbe ab, landen die
-# Einstellungen beider auf dem, der sich zuletzt verbunden hat. Aus dem
-# Hostnamen laesst sie sich nicht bilden -- der ist bei jedem Container neu.
+# An identifier that outlives this container and tells it apart from any other.
+# A Music Assistant server files volume, groups and pairing per player id; if two
+# players derive the same one, both their settings land on whichever connected
+# last. It cannot be formed from the hostname -- that is new for every container.
 zone::instance_id() {
     if [ ! -s "${INSTANCE_ID_FILE}" ]; then
         mkdir -p "$(dirname "${INSTANCE_ID_FILE}")"
-        # /proc/sys/kernel/random/uuid gibt es ueberall, wo dieser Container laeuft.
+        # /proc/sys/kernel/random/uuid exists everywhere this container runs.
         cat /proc/sys/kernel/random/uuid | cut -c1-8 > "${INSTANCE_ID_FILE}"
     fi
     cat "${INSTANCE_ID_FILE}"
 }
 
-# Die Kanalmap des Sinks "$1", als Komma-Liste. Leer, wenn es ihn nicht gibt.
+# The channel map of sink "$1", as a comma list. Empty if it does not exist.
 zone::channel_map() {
     zone::pactl list sinks | awk -v target="$1" '
         /^Sink #/ { name = ""; map = "" }
@@ -64,10 +63,10 @@ zone::channel_map() {
     '
 }
 
-# Der mehrkanalige Ausgang, durch den die Zonen spielen sollen: der erste Sink
-# mit mehr als zwei Kanaelen, der keiner unserer eigenen ist. Nur ein Vorschlag
-# fuer den Fall, dass die Konfiguration keinen nennt -- eine Maschine mit zwei
-# Interfaces soll ihn nicht raten muessen.
+# The multi-channel output the zones should play through: the first sink with
+# more than two channels that is not one of our own. Only a suggestion for the
+# case where the configuration names none -- a machine with two interfaces should
+# not have to guess it.
 zone::detect_master() {
     zone::pactl list sinks short | while IFS=$'\t' read -r _ name module spec _; do
         case ${name} in out_*) continue ;; esac
@@ -78,12 +77,12 @@ zone::detect_master() {
     done | head -n 1
 }
 
-# Die Zonen, die auf diesem Master moeglich sind, eine je Zeile als
-#   <sink-name> <master-kanalpaar>
-# Gerechnet wird aus der Kanalmap des Geraets, nicht aus seiner Kanalzahl: die
-# Zahl sagt nicht, welche Positionen dahinterstehen, und ein Geraet, das von der
-# ueblichen Reihenfolge abweicht, bekaeme sonst eine Zuordnung, die still falsch
-# ist. Die Buchsennummern im Namen sind die Position in dieser Map.
+# The zones possible on this master, one per line as
+#   <sink-name> <master-channel-pair>
+# Computed from the device's channel map, not from its channel count: the count
+# does not say which positions are behind it, and a device that deviates from the
+# usual order would otherwise get a mapping that is silently wrong. The socket
+# numbers in the name are the position in this map.
 zone::available_zones() {
     local map=$1
     local -a position
@@ -108,18 +107,17 @@ zone::available_zones() {
         fi
     done <<< "${ZONE_PAIRS}"
 
-    # Die Zone ueber alle Kanaele zugleich -- was ein AV-Receiver "Multi Channel
-    # Stereo" nennt. Erst ab sechs Kanaelen sinnvoll; darunter ist sie dasselbe
-    # wie das erste Paar.
+    # The zone over all channels at once -- what an AV receiver calls "Multi
+    # Channel Stereo". Only meaningful from six channels up; below that it is the
+    # same as the first pair.
     if [ "${#position[@]}" -ge 6 ]; then
         printf 'out_all %s\n' "${map}"
     fi
 }
 
-# Legt die Sinks an, die es noch nicht gibt. Idempotent, weil dieselbe Funktion
-# den Neustart des Audio-Plugins auffaengt: dort sind alle Sinks verschwunden,
-# hier sind sie danach wieder da, ohne dass ein Player etwas merkt ausser einer
-# Unterbrechung.
+# Creates the sinks that do not exist yet. Idempotent, because the same function
+# catches a restart of the audio plugin: there all sinks are gone, here they are
+# back afterwards, without a player noticing anything but an interruption.
 zone::ensure_sinks() {
     local master=$1 map=$2
     local existing sink chanmap count target created=0
@@ -134,17 +132,16 @@ zone::ensure_sinks() {
 
         count=$(printf '%s' "${chanmap}" | tr ',' '\n' | grep -c .)
         if [ "${count}" -eq 2 ]; then
-            # Nach aussen ist jede Stereo-Zone gewoehnliches
-            # front-left,front-right, ganz gleich, auf welchen Buchsen sie liegt.
+            # To the outside every stereo zone is ordinary front-left,front-right,
+            # no matter which sockets it sits on.
             target='front-left,front-right'
         else
             target=${chanmap}
         fi
 
-        # Der Wert von sink_properties steht in doppelten *und* einfachen
-        # Anfuehrungszeichen: ohne die inneren zerlegt PulseAudio eine
-        # Beschreibung mit Leerzeichen in zwei Argumente und lehnt die ganze
-        # Zeile ab.
+        # The sink_properties value is in double *and* single quotes: without the
+        # inner ones PulseAudio splits a description containing a space into two
+        # arguments and rejects the whole line.
         if zone::pactl load-module module-remap-sink \
             "sink_name=${sink}" \
             "sink_properties=device.description='${sink}'" \
@@ -155,19 +152,19 @@ zone::ensure_sinks() {
             remix=no > /dev/null; then
             created=$((created + 1))
         else
-            zone::log "Sink ${sink} liess sich nicht anlegen."
+            zone::log "Could not create sink ${sink}."
         fi
     done <<< "$(zone::available_zones "${map}")"
 
     if [ "${created}" -gt 0 ]; then
-        # module-device-restore stellt die zuletzt gesetzte Lautstaerke des
-        # Masters wieder her, und die liegt *unter* jeder Zone: ein Master auf
-        # 40% daempft alle Zonen um 40%, unsichtbar, denn die Zonenregler stehen
-        # weiter auf 100. Geregelt wird in den Zonen.
+        # module-device-restore restores the master's last-set volume, and that
+        # sits *underneath* every zone: a master at 40% attenuates all zones by
+        # 40%, invisibly, since the zone faders still read 100. Regulation happens
+        # in the zones.
         zone::pactl set-sink-volume "${master}" 100% > /dev/null
-        # Einmal aus und wieder an, nachdem die Kanaele neu zugeteilt sind.
+        # Off and on again, after the channels have been reassigned.
         zone::pactl suspend-sink "${master}" 1 > /dev/null
         zone::pactl suspend-sink "${master}" 0 > /dev/null
-        zone::log "${created} Zonen-Sinks angelegt auf ${master}."
+        zone::log "Created ${created} zone sinks on ${master}."
     fi
 }

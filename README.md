@@ -1,95 +1,91 @@
 # Home Assistant Add-ons
 
-Ein Add-on-Repository für Home Assistant. Einmal im Add-on-Store hinterlegt,
-erscheinen alle Add-ons daraus dort — mit Update-Benachrichtigungen wie bei
-jedem anderen Add-on auch.
+An add-on repository for Home Assistant. Once added to the Add-on Store, every
+add-on it contains shows up there — with update notifications like any other
+add-on.
 
-**Nicht über HACS.** HACS führt Custom Integrations, Lovelace-Karten und Themes;
-Add-ons laufen über den Supervisor und damit über den Add-on-Store. Das ist kein
-Umweg, sondern der vorgesehene Weg: der Store hier ist derselbe Mechanismus, mit
-dem auch die offiziellen Add-ons kommen.
+**Not via HACS.** HACS handles custom integrations, Lovelace cards and themes;
+add-ons run through the Supervisor and therefore through the Add-on Store. That
+is not a detour but the intended path: the store here is the same mechanism the
+official add-ons come through.
 
-## Einbinden
+## Adding the repository
 
-> **Nicht über HACS.** Dies sind Home-Assistant-**Add-ons**, keine
-> Integrationen, Lovelace-Karten oder Themes — sie werden über den **Add-on-Store**
-> des Supervisors eingebunden, nicht über HACS. Auf HAOS/Supervised verfügbar,
-> nicht auf Home Assistant Container/Core.
+> **Not via HACS.** These are Home Assistant **add-ons**, not integrations,
+> Lovelace cards or themes — they are added through the Supervisor's **Add-on
+> Store**, not through HACS. Available on HAOS/Supervised, not on Home Assistant
+> Container/Core.
 
-**Einstellungen → Add-ons → Add-on-Store → ⋮ → Repositories**, dann diese URL
-eintragen:
+**Settings → Add-ons → Add-on Store → ⋮ → Repositories**, then enter this URL:
 
 ```
 https://github.com/sunnyhd/ha-addons
 ```
 
-Das Repository muss dafür öffentlich erreichbar sein — der Supervisor klont es
-ohne Anmeldung.
+The repository has to be publicly reachable for this — the Supervisor clones it
+without authentication.
 
-## Enthaltene Add-ons
+## Included add-ons
 
 ### Local Audio Zones
 
-Teilt einen mehrkanaligen Audio-Ausgang in unabhängige Stereo-Zonen und spielt
-jede als eigenen Sendspin-Player für Music Assistant. Ein achtkanaliges
-Interface wird so zu vier Stereo-Zonen — jede mit eigener Lautstärke,
-Warteschlange und Gruppenzugehörigkeit — plus einer Zone über alle Ausgänge.
+Splits one multi-channel audio output into independent stereo zones and plays
+each as its own Sendspin player for Music Assistant. An eight-channel interface
+becomes four stereo zones — each with its own volume, queue and group
+membership — plus one zone that plays to every output at once.
 
-Beim Start liest das Add-on die Kanalmap des über `audio: true` hereingereichten
-Ausgangs, legt je Ausgangspaar einen `module-remap-sink` in Home Assistants
-PulseAudio an und startet einen `sendspin-cli` je Zone. Alle Player laufen in
-einem Container, jeder auf einem eigenen Port (8928 aufwärts) und mit eigener,
-stabiler `SENDSPIN_ID`. Ein Watchdog startet abgestürzte Player neu und legt
-die Sinks erneut an, falls ein Neustart des Audio-Plugins sie entfernt.
+At startup the add-on reads the channel map of the output that `audio: true`
+maps in, creates one `module-remap-sink` per output pair in Home Assistant's
+PulseAudio, and starts one `sendspin-cli` per zone. All players run in a single
+container, each on its own port (8928 upward) and with its own stable
+`SENDSPIN_ID`. A watchdog restarts a crashed player and recreates the sinks if a
+restart of the audio plugin removes them.
 
-**Konfiguration** (vollständig in der Add-on-Oberfläche, keine Datei auf dem
-Host, kein Docker-Zugriff, kein abgeschalteter Schutzmodus):
+**Configuration** (entirely in the add-on UI — no file on the host, no Docker
+access, no disabled protection mode):
 
-| Option | Bedeutung |
+| Option | Meaning |
 | --- | --- |
-| `server` | Adresse des Music-Assistant-Servers (`host:port`, meist `<ha-ip>:8927`). **Pflicht** — ohne Host-Netz kein mDNS, der Player wählt sich ein. |
-| `zones` | Liste je Zone: `name` (Anzeigename in MA) und `output` (Ausgangspaar, z. B. `out_3_4_rear`). Beliebig erweiterbar. |
-| `master_sink` | Welcher mehrkanalige Ausgang aufgeteilt wird. Leer = erster mit mehr als zwei Kanälen. |
-| `buffer_ms` | Puffer je Player in Millisekunden, gegen Aussetzer auf langsamen Systemen. |
+| `server` | Address of the Music Assistant server (`host:port`, usually `<ha-ip>:8927`). **Required** — without host networking there is no mDNS, so the player dials out. |
+| `zones` | One entry per zone: `name` (display name in MA) and `output` (output pair, e.g. `out_3_4_rear`). Add as many as the interface has pairs. |
+| `master_sink` | Which multi-channel output to split. Empty = the first one with more than two channels. |
+| `buffer_ms` | Buffer per player in milliseconds, against dropouts on slow systems. |
 | `log_level` | `debug` … `error`. |
 
-**Getestet mit** einer ESI GIGAPORT eX (USB, 8 Ausgänge). Der Ansatz ist aber
-nicht auf dieses Modell festgelegt: das Add-on liest die Kanalmap des Ausgangs
-zur Laufzeit, statt ein Gerät fest anzunehmen. Andere mehrkanalige USB-Interfaces
-— und grundsätzlich jede Soundkarte, die Home Assistants PulseAudio mit einem
-Mehrkanal-Profil erkennt — sollten daher ebenso funktionieren. Real verifiziert
-ist bislang nur die GIGAPORT eX; andere Geräte können eine abweichende
-Kanalordnung mitbringen (dann greift der Zuordnungs-Schritt aus DOCS.md).
-Rückmeldungen zu weiteren Interfaces sind willkommen.
+**Tested with** an ESI GIGAPORT eX (USB, 8 outputs). The approach is not tied to
+this model, though: the add-on reads the output's channel map at runtime rather
+than assuming a device. Other multi-channel USB interfaces — and in principle
+any sound card that Home Assistant's PulseAudio exposes with a multi-channel
+profile — should work as well. Only the GIGAPORT eX is verified so far; other
+devices may present a different channel order (then the mapping step from
+DOCS.md applies). Feedback on further interfaces is welcome.
 
-Aufgeteilt werden **Ausgänge**. Audio-**Eingänge** (Line-In, Plattenspieler,
-Mikrofon) werden derzeit nicht unterstützt — der zugrunde liegende Player
-`sendspin-cli` implementiert die Sendspin-Source-Rolle nicht; Details in
-DOCS.md.
+What is split are **outputs**. Audio **inputs** (line-in, turntable, microphone)
+are not supported yet — the underlying player `sendspin-cli` does not implement
+the Sendspin source role; see DOCS.md.
 
-Ausgangs-Zuordnung, geräteabhängige Kanalordnung, USB-Strom bei bus-powered
-Interfaces und der Betrieb unter HAOS-in-einer-VM sind in
-[`zone_players/DOCS.md`](zone_players/DOCS.md) bzw. im Dokumentations-Tab des
-Add-ons beschrieben.
+Output mapping, device-dependent channel order, USB power on bus-powered
+interfaces and running under HAOS-in-a-VM are described in
+[`zone_players/DOCS.md`](zone_players/DOCS.md) or in the add-on's Documentation
+tab.
 
-## Wartung
+## Maintenance
 
-Das Add-on erbt sein Image vom Upstream
+The add-on inherits its image from upstream
 [music-assistant/local-audio-addon](https://github.com/music-assistant/local-audio-addon)
-(`FROM …:<tag>`) — daraus kommen der Player (`sendspin-cli`), `pactl` und das
-Basis-Image; die Zonen-Logik ist davon unabhängig.
+(`FROM …:<tag>`) — the player (`sendspin-cli`), `pactl` and the base image come
+from there; the zone logic is independent of it.
 
-Der Workflow `.github/workflows/upstream-bump.yml` beobachtet den Upstream und
-öffnet bei einer neuen Version automatisch einen Pull Request, der `FROM`-Tag
-und `version` gemeinsam anhebt (samt Test-Checkliste). Einmalig nötig:
-**Settings → Actions → General → „Allow GitHub Actions to create and approve
-pull requests"** aktivieren. Details und der manuelle Weg stehen in
+The workflow `.github/workflows/upstream-bump.yml` watches upstream and, on a new
+version, automatically opens a pull request that raises the `FROM` tag and the
+add-on `version` together (with a test checklist). One-time step required:
+enable **Settings → Actions → General → "Allow GitHub Actions to create and
+approve pull requests"**. Details and the manual path are in
 [`zone_players/DOCS.md`](zone_players/DOCS.md).
 
-## Stand
+## Status
 
-Läuft produktiv gegen echte Hardware (ESI GIGAPORT eX, 8 Ausgänge → 4 Stereo-
-Zonen + „Alle Zonen") und einen laufenden Supervisor. Zwei Stolpersteine der
-Inbetriebnahme sind in `DOCS.md` festgehalten: die geräteabhängige Kanalordnung
-und die USB-Stromversorgung bus-powered Interfaces (ein USB-3-Port bzw. aktiver
-Hub war nötig).
+Runs in production against real hardware (ESI GIGAPORT eX, 8 outputs → 4 stereo
+zones + "All zones") and a live Supervisor. Two setup pitfalls are recorded in
+`DOCS.md`: the device-dependent channel order, and USB power for bus-powered
+interfaces (a USB 3 port or a powered hub was needed).

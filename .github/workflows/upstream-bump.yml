@@ -1,18 +1,18 @@
-# Beobachtet den Upstream local-audio-addon und oeffnet einen PR, sobald eine
-# neue Version veroeffentlicht ist. Der PR hebt zwei Stellen GEMEINSAM an: den
-# `FROM`-Tag im Dockerfile (das Image, aus dem sendspin-cli/pactl/s6 kommen) und
-# `version` in config.yaml -- die beiden muessen in Sync bleiben.
+# Watches the upstream local-audio-addon and opens a PR as soon as a new version
+# is released. The PR raises two places TOGETHER: the `FROM` tag in the Dockerfile
+# (the image sendspin-cli/pactl/s6 come from) and `version` in config.yaml -- the
+# two must stay coherent, though they mean different things (see below).
 #
-# Selbst-enthalten: laeuft in den Actions dieses Repos, braucht keinen externen
-# Dienst (kein Renovate/Dependabot-App-Zwang). Die Versionsquelle ist der
-# neueste GitHub-Release von music-assistant/local-audio-addon; dessen Tag
-# (`vX.Y.Z`) ist zugleich der Image-Tag (`X.Y.Z`).
-name: Upstream-Version pruefen
+# Self-contained: runs in this repo's own Actions, needs no external service (no
+# Renovate/Dependabot app requirement). The version source is the latest GitHub
+# release of music-assistant/local-audio-addon; its tag (`vX.Y.Z`) is also the
+# image tag (`X.Y.Z`).
+name: Check upstream version
 
 on:
   schedule:
-    - cron: "0 6 * * 1"   # jeden Montag 06:00 UTC
-  workflow_dispatch: {}    # zum manuellen Ausloesen
+    - cron: "0 6 * * 1"   # every Monday 06:00 UTC
+  workflow_dispatch: {}    # manual trigger
 
 permissions:
   contents: write
@@ -24,7 +24,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Versionen ermitteln
+      - name: Determine versions
         id: v
         env:
           GH_TOKEN: ${{ github.token }}
@@ -36,58 +36,58 @@ jobs:
                      zone_players/Dockerfile)
           echo "latest=$latest"   >> "$GITHUB_OUTPUT"
           echo "current=$current" >> "$GITHUB_OUTPUT"
-          echo "Upstream: $latest   aktuell gepinnt: $current"
+          echo "Upstream: $latest   currently pinned: $current"
 
-      - name: Dateien anheben
+      - name: Raise files
         id: bump
         if: steps.v.outputs.latest != '' && steps.v.outputs.latest != steps.v.outputs.current
         run: |
           set -euo pipefail
-          L="${{ steps.v.outputs.latest }}"        # neuer Image-Tag (Upstream)
-          C="${{ steps.v.outputs.current }}"        # bisheriger Image-Tag
-          # FROM folgt dem Image-Tag.
+          L="${{ steps.v.outputs.latest }}"        # new image tag (upstream)
+          C="${{ steps.v.outputs.current }}"        # previous image tag
+          # FROM follows the image tag.
           sed -i "s#^FROM ghcr.io/music-assistant/local-audio-addon:.*#FROM ghcr.io/music-assistant/local-audio-addon:${L}#" \
             zone_players/Dockerfile
-          # config.yaml version ist die EIGENE Add-on-Version, unabhaengig vom
-          # Image-Tag -- sie bekommt einen Patch-Bump, damit der Supervisor
-          # "Update verfuegbar" zeigt.
+          # config.yaml version is the add-on's OWN version, independent of the
+          # image tag -- it gets a patch bump so the Supervisor shows
+          # "update available".
           cur=$(sed -n 's/^version: "\(.*\)"/\1/p' zone_players/config.yaml)
           maj=${cur%%.*}; rest=${cur#*.}; min=${rest%%.*}; pat=${rest#*.}
           new="${maj}.${min}.$((pat + 1))"
           sed -i "s/^version: \".*\"/version: \"${new}\"/" zone_players/config.yaml
           echo "addon_new=$new" >> "$GITHUB_OUTPUT"
-          # CHANGELOG-Eintrag unter der eigenen Add-on-Version voranstellen.
+          # Prepend a CHANGELOG entry under the add-on's own version.
           tmp=$(mktemp)
           {
             head -n 1 zone_players/CHANGELOG.md
-            printf '\n## %s\n\n- Basis-Image auf %s angehoben (war %s). Vor dem Merge testen:\n  rebuild, dann Zonen-Sinks und einen Handshake je Zone pruefen.\n' "$new" "$L" "$C"
+            printf '\n## %s\n\n- Base image raised to %s (was %s). Test before merging:\n  rebuild, then check the zone sinks and one handshake per zone.\n' "$new" "$L" "$C"
             tail -n +2 zone_players/CHANGELOG.md
           } > "$tmp"
           mv "$tmp" zone_players/CHANGELOG.md
           echo "changed=true" >> "$GITHUB_OUTPUT"
 
-      - name: PR oeffnen
+      - name: Open PR
         if: steps.bump.outputs.changed == 'true'
         uses: peter-evans/create-pull-request@v6
         with:
           branch: "bump/local-audio-addon-${{ steps.v.outputs.latest }}"
-          title: "Basis-Image auf ${{ steps.v.outputs.latest }} (Add-on ${{ steps.bump.outputs.addon_new }})"
+          title: "Raise base image to ${{ steps.v.outputs.latest }} (add-on ${{ steps.bump.outputs.addon_new }})"
           commit-message: |
-            Basis-Image auf ${{ steps.v.outputs.latest }} anheben
+            Raise base image to ${{ steps.v.outputs.latest }}
 
-            FROM-Tag und config.yaml version gemeinsam angehoben (war
-            ${{ steps.v.outputs.current }}). sendspin-cli und pactl kommen aus
-            diesem Image; die Zonen-Logik bleibt unveraendert.
+            FROM tag and config.yaml version raised together (was
+            ${{ steps.v.outputs.current }}). sendspin-cli and pactl come from
+            this image; the zone logic is unchanged.
           body: |
-            Automatischer Bump auf den neuesten Upstream-Release
-            **${{ steps.v.outputs.latest }}** (war ${{ steps.v.outputs.current }}).
+            Automatic bump to the latest upstream release
+            **${{ steps.v.outputs.latest }}** (was ${{ steps.v.outputs.current }}).
 
-            Geaendert: `zone_players/Dockerfile` (FROM), `zone_players/config.yaml`
+            Changed: `zone_players/Dockerfile` (FROM), `zone_players/config.yaml`
             (version), `zone_players/CHANGELOG.md`.
 
-            **Vor dem Merge testen:**
-            - [ ] Add-on rebuild laeuft durch (die Dockerfile-Assertion faengt eine
-                  Umstrukturierung der s6-Dienste als roten Build ab)
-            - [ ] `pactl list sinks short` zeigt die Zonen-Sinks (`out_*`)
-            - [ ] Add-on-Log zeigt einen Handshake je Zone
-            - [ ] Ein Testton je Zone kommt auf dem erwarteten Ausgang
+            **Test before merging:**
+            - [ ] add-on rebuild completes (the Dockerfile assertion catches a
+                  restructuring of the s6 services as a red build)
+            - [ ] `pactl list sinks short` shows the zone sinks (`out_*`)
+            - [ ] the add-on log shows one handshake per zone
+            - [ ] a test tone per zone comes out of the expected output

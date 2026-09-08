@@ -2,35 +2,35 @@ name: Local Audio Zones
 version: "0.1.0"
 slug: zone_players
 description: >-
-  Teilt einen mehrkanaligen Audio-Ausgang in unabhaengige Stereo-Zonen und
-  spielt jede als eigener Sendspin-Player fuer Music Assistant.
+  Splits a multi-channel audio output into independent stereo zones and plays
+  each as its own Sendspin player for Music Assistant.
 url: https://github.com/sunnyhd/ha-addons
 arch:
   - amd64
   - aarch64
 stage: experimental
-# Vor Home Assistant, damit die Zonen schon anbieten, wenn Music Assistant zu
-# suchen beginnt.
+# Before Home Assistant, so the zones are already advertising when Music
+# Assistant starts looking.
 startup: services
-# Das Image bringt sein eigenes s6-overlay v3 mit.
+# The image brings its own s6-overlay v3.
 init: false
-# Eigener Netzwerk-Namespace. Die Player lauschen auf 8928 aufwaerts, einer je
-# Zone; im Netz des Hosts waeren das ebenso viele Bewerber um denselben Port wie
-# Zonen. Ohne Host-Netz gibt es dafuer kein mDNS -- deshalb ist `server` unten
-# Pflicht und der Player waehlt sich ein, statt gefunden zu werden.
+# Own network namespace. The players listen on 8928 upward, one per zone; on the
+# host's network that would be as many bidders for the same port as there are
+# zones. Without host networking there is no mDNS for it -- which is why `server`
+# below is required and the player dials out instead of being discovered.
 host_network: false
-# Reicht Home Assistants PulseAudio herein: den Socket unter /run/audio, ueber
-# den dieses Add-on die Zonen anlegt und bespielt.
+# Maps Home Assistant's PulseAudio in: the socket under /run/audio, through
+# which this add-on creates and plays the zones.
 audio: true
 options:
   server: ""
   log_level: info
   zones:
-    - name: Wohnzimmer
+    - name: Living Room
       output: out_1_2_front
-# `master_sink` und `buffer_ms` sind ohne Vorgabe und stehen deshalb hinter der
-# Klappe, die man absichtlich aufmacht: der Ausgang wird erkannt, und die
-# Puffergroesse gehoert upstream.
+# `master_sink` and `buffer_ms` have no default and therefore sit behind the fold
+# a user opens deliberately: the output is detected, and the buffer size is
+# upstream's to own.
 schema:
   server: str
   master_sink: str?

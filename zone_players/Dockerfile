@@ -1,36 +1,33 @@
-# Erbt vom veroeffentlichten Local-Audio-Image: sendspin-cli, pactl, s6-overlay
-# und die Bibliotheken der Ausgabe-Backends sind darin schon fertig gebaut. Was
-# dieses Add-on hinzufuegt, ist ausschliesslich die Betriebsart -- ein Prozess
-# je Zone statt einem einzigen Player.
+# Inherits from the published Local Audio image: sendspin-cli, pactl, s6-overlay
+# and the output-backend libraries are already built into it. All this add-on
+# adds is the mode of operation -- one process per zone instead of a single
+# player.
 #
-# Kein ARG BUILD_FROM: das setzt der Supervisor auf das Home-Assistant-Basisimage
-# der Architektur, und darin gibt es keinen Player. Der Tag steht deshalb
-# ausgeschrieben. Er ist die Version des Upstream-*Images* -- getrennt von der
-# eigenen Add-on-Version in config.yaml, die ihren eigenen Lauf hat. Der
-# upstream-bump-Workflow hebt beide an: diesen Tag auf den neuen Image-Release,
-# die Add-on-Version um einen Patch. Das Manifest ist multi-arch, `docker build`
-# zieht also die passende Variante.
+# No ARG BUILD_FROM: the Supervisor sets that to the architecture's Home
+# Assistant base image, which has no player in it. The tag is therefore written
+# out. It is the version of the upstream *image* -- separate from this add-on's
+# own version in config.yaml, which has its own line. The upstream-bump workflow
+# raises both: this tag to the new image release, the add-on version by a patch.
+# The manifest is multi-arch, so `docker build` pulls the matching variant.
 FROM ghcr.io/music-assistant/local-audio-addon:0.1.13
 
-# Die vier Dienste des Basisimages abschalten. sendspin-cli startet genau einen
-# Player -- das ist hier nicht der Plan. sendspin-init entscheidet ueber die
-# gebuendelten Daemons und laesst den Container ohne erreichbaren Supervisor
-# fehlschlagen; avahi und dbus tragen einen Player ueber mDNS an, was ohne das
-# Netz des Hosts ohnehin niemanden erreicht. Die Dateien bleiben liegen, nur
-# aktiviert sind sie nicht mehr.
+# Disable the base image's four services. sendspin-cli starts exactly one player
+# -- not the plan here. sendspin-init decides on the bundled daemons and fails
+# the container without a reachable Supervisor; avahi and dbus advertise a player
+# over mDNS, which reaches nobody without host networking anyway. The files stay
+# in place, they are just no longer activated.
 #
-# Jede Datei wird vor dem Loeschen geprueft, statt blind `rm -f`. Benennt das
-# Basisimage bei einem Versions-Bump einen dieser Dienste um oder strukturiert
-# die s6-Kette um, liefe ein blindes rm ins Leere -- der umbenannte Dienst
-# startete dann NEBEN unserem, und der Port-8928-Streit (bzw. avahi auf 5353)
-# kaeme still zurueck. Als Assertion wird daraus ein roter Build statt eines
-# stillen Ausfalls im Betrieb.
+# Each file is checked before removal instead of a blind `rm -f`. If the base
+# image renames one of these services on a version bump, or restructures the s6
+# chain, a blind rm would no-op -- the renamed service would then start BESIDE
+# ours and bring back the port-8928 fight (or avahi on 5353) silently. As an
+# assertion this becomes a red build instead of a silent failure in operation.
 RUN set -eu; \
     for svc in sendspin-cli sendspin-init avahi dbus; do \
         f="/etc/s6-overlay/s6-rc.d/user/contents.d/${svc}"; \
         if [ ! -e "${f}" ]; then \
-            echo "FEHLER: erwarteter s6-Dienst fehlt: ${f}" >&2; \
-            echo "Das Basisimage wurde umstrukturiert -- Dockerfile pruefen, bevor der Tag angehoben wird." >&2; \
+            echo "ERROR: expected s6 service missing: ${f}" >&2; \
+            echo "The base image was restructured -- review the Dockerfile before raising the tag." >&2; \
             exit 1; \
         fi; \
         rm -f "${f}"; \
@@ -38,7 +35,7 @@ RUN set -eu; \
 
 COPY rootfs/ /
 
-# Der Container haelt seine Zonen selbst am Leben, statt bei einem gescheiterten
-# Player zu enden: eine Zone, deren Ausgang gerade verschwunden ist, soll die
-# vier anderen nicht mitnehmen.
+# The container keeps its zones alive itself instead of ending when one player
+# fails: a zone whose output has just disappeared should not take the other four
+# down with it.
 ENV S6_BEHAVIOUR_IF_STAGE2_FAILS=2

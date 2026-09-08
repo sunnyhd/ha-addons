@@ -1,38 +1,38 @@
 #include <tunables/global>
 
-# Der Name unten ist ein Platzhalter: der Supervisor schreibt ihn beim Laden auf
-# den installierten Slug um, und der Slug traegt ein installationsabhaengiges
-# Praefix (`local_` fuer ein lokales Add-on, den Repository-Hash fuer eins aus
-# dem Store). Nichts in dieser Datei darf das Profil daher ueber seinen Namen
-# ansprechen -- weshalb die Empfangsregeln der Kindprofile ohne Peer stehen.
+# The name below is a placeholder: the Supervisor rewrites it to the installed
+# slug at load time, and the slug carries an install-dependent prefix (`local_`
+# for a local add-on, the repository hash for a store one). Nothing in this file
+# may therefore reference the profile by name -- which is why the child receive
+# rules are peerless.
 #
-# Adaptiert vom Basis-Profil des local-audio-addon. Zwei Dinge sind hier anders:
-# die gebuendelten Daemons dbus und avahi sind in diesem Add-on abgeschaltet
-# (das Image entfernt sie aus der s6-user-Kette), also fehlen ihre Kindprofile;
-# und es laeuft ein sendspin-cli je Zone statt einem einzigen -- alle unter
-# demselben Kindprofil, das eine Instanz auch bekaeme.
+# Adapted from the base profile of local-audio-addon. Two things differ here: the
+# bundled dbus and avahi daemons are disabled in this add-on (the image removes
+# them from the s6 user chain), so their child profiles are absent; and one
+# sendspin-cli runs per zone instead of a single one -- all under the same child
+# profile a single instance would get.
 profile zone_players flags=(attach_disconnected,mediate_deleted) {
   #include <abstractions/base>
 
-  # Ein Add-on mit fester Funktion: kein mount/umount/remount, kein
-  # dac_read_search, kein sys_admin. Der Supervisions-Baum, bashio und das
-  # optionslesende run-Skript laufen als root und wechseln zu keinem anderen
-  # Nutzer, also ist CAP_KILL die einzige Capability dieses aeusseren Profils.
-  # s6-supervise signalisiert jeden longrun zum Stoppen -- SIGTERM und der
-  # SIGKILL des timeout-kill dahinter -- und beides ist ein CAP_KILL-Check.
+  # A fixed-function add-on: no mount/umount/remount, no dac_read_search, no
+  # sys_admin. The supervision tree, bashio and the option-reading scripts all
+  # run as root and switch to no other user, so CAP_KILL is the only capability
+  # this outer profile declares. s6-supervise signals the longrun down -- the
+  # SIGTERM and the SIGKILL its timeout-kill fires behind it -- and both are a
+  # CAP_KILL check.
   capability kill,
 
   file,
 
-  # s6 ueberwacht den Dienst und reicht einen Container-Stop weiter. Das
-  # Stop-Signal kommt von der unconfined Container-Runtime, die die
-  # base-Abstraktion bereits zu empfangen erlaubt. Das Kindprofil unten
-  # wiederholt dieses Set als sein `signal (receive)` -- sie muessen passen,
-  # sonst wird ein Signal bei der Zustellung verweigert.
+  # s6 supervises the service and passes on a container stop. The stop signal
+  # arrives from the unconfined container runtime, which the base abstraction
+  # already permits receiving from. The child profile below repeats this set as
+  # its `signal (receive)` -- they have to match, or a signal is denied at
+  # delivery.
   signal (send) set=(kill,term,int,hup,cont,usr1,usr2),
 
-  # s6-overlay v3: init, die execline- und s6-Tools auf dem PATH, und der
-  # Supervisions-Zustand unter /run.
+  # s6-overlay v3: the init, the execline and s6 tools it puts on PATH, and the
+  # supervision state it builds under /run.
   /init ix,
   /bin/** ix,
   /usr/bin/** ix,
@@ -43,16 +43,15 @@ profile zone_players flags=(attach_disconnected,mediate_deleted) {
   /run/{s6,s6-rc*,service}/** rwix,
   /run/s6-linux-init-container-results/** rw,
 
-  # bashio liest die Optionen ueber die Supervisor-API; die gemeinsame
-  # Shell-Bibliothek dieses Add-ons (common.sh) und jq machen daraus die Werte,
-  # die das run-Skript in die Player-Konfigurationen schreibt.
+  # bashio reads the options over the Supervisor API; this add-on's shared shell
+  # library (common.sh) and jq turn the answer into the values the run script
+  # writes into the player configs.
   /usr/lib/bashio/** ix,
   /usr/lib/zone-players/** r,
 
-  # bashios Options-Abruf ist ein HTTP-Call an den Supervisor; die
-  # Namensaufloesung dafuer braucht das dgram-Paar. pactl erreicht die
-  # PulseAudio ueber einen Unix-Socket, die Player erreichen den
-  # Music-Assistant-Server ueber inet.
+  # bashio's option fetch is an HTTP call to the Supervisor; resolving the
+  # hostname for it needs the dgram pair. pactl reaches PulseAudio over a unix
+  # socket, the players reach the Music Assistant server over inet.
   network inet stream,
   network inet6 stream,
   network inet dgram,
@@ -60,27 +59,27 @@ profile zone_players flags=(attach_disconnected,mediate_deleted) {
   network unix stream,
   network unix dgram,
 
-  # /run/zone-players haelt die gerenderten Konfigurationen und die
-  # Control-Sockets je Zone; /data ist das persistente Volume (Instanz-ID und
-  # der Zustand je Zone unter /data/zones); s6 schreibt und sperrt den Rest von
-  # /run. pactl spricht die hereingereichte PulseAudio unter /run/audio an --
-  # von der blanket `file,`-Regel oben abgedeckt.
+  # /run/zone-players holds the rendered configs and the control sockets per
+  # zone; /data is the persistent volume (instance id and the per-zone state
+  # under /data/zones); s6 writes and locks the rest of /run. pactl talks to the
+  # mapped-in PulseAudio under /run/audio -- covered by the blanket `file,` rule
+  # above.
   /run/zone-players/** rw,
   /data/** rw,
   /run/** rwk,
   /tmp/** rw,
 
-  # Nichts hier liest die Shadow-Dateien oder aendert die Konto-Datenbanken, und
-  # die `file`-Regel oben wuerde beides sonst erlauben.
+  # Nothing here reads the shadow files or edits the account databases, and the
+  # `file` rule above would otherwise allow both.
   deny /etc/shadow rw,
   deny /etc/gshadow rw,
   deny /etc/{passwd,group} w,
 
-  # Der Player ist enger eingesperrt als dieses Profil.
+  # The player is confined more tightly than this profile.
   /usr/bin/sendspin-cli cx,
 
-  # Ein sendspin-cli je Zone, alle unter diesem einen Kindprofil. Es braucht
-  # keine Capability: es laeuft als root, und was es oeffnet, gehoert root.
+  # One sendspin-cli per zone, all under this single child profile. It needs no
+  # capability: it runs as root, and what it opens is root-owned.
   profile /usr/bin/sendspin-cli flags=(attach_disconnected,mediate_deleted) {
     #include <abstractions/base>
     #include <abstractions/nameservice>
@@ -89,22 +88,22 @@ profile zone_players flags=(attach_disconnected,mediate_deleted) {
 
     /usr/bin/sendspin-cli mr,
 
-    # Ein wss:// Server-Wert braucht den Trust-Store.
+    # A wss:// server value needs the trust store.
     /etc/ssl/** r,
     /usr/share/ca-certificates/** r,
 
-    # Der PulseAudio-Client legt seinen Cookie unter dem (root-)Home ab.
+    # The PulseAudio client writes its cookie under the (root) home.
     owner /root/.config/ w,
     owner /root/.config/pulse/ w,
     owner /root/.config/pulse/** rw,
 
-    # Die eigene gerenderte Konfiguration, der Control-Socket und der
-    # persistente Zustand je Zone. k fuer die Lock-Datei des Sockets.
+    # Its own rendered config, control socket and persistent state per zone. k for
+    # the socket's lock file.
     /run/zone-players/** rwk,
     /data/zones/** rw,
 
-    # ALSA: die Konfiguration der Bibliothek und das Plugin, das zu PulseAudio
-    # brueckt.
+    # ALSA: the library's configuration and the plugin that bridges to
+    # PulseAudio.
     /usr/lib/**/alsa-lib/*.so mr,
     /usr/share/alsa/** r,
     /etc/alsa/** r,
@@ -115,15 +114,14 @@ profile zone_players flags=(attach_disconnected,mediate_deleted) {
     /sys/class/sound/** r,
     /sys/devices/**/sound/** r,
 
-    # Home Assistants PulseAudio, die `audio: true` hereinreicht und ueber die
-    # jeder Player seinen `pulse:<sink>`-Ausgang bespielt.
+    # Home Assistant's PulseAudio, which `audio: true` maps in and through which
+    # each player plays its `pulse:<sink>` output.
     /etc/pulse/** r,
     /run/audio/** rw,
     /dev/shm/** rw,
 
-    # Der Websocket-Server (Port 8928 aufwaerts, einer je Zone) und die
-    # Verbindungen, die er nach aussen aufbaut; UDP zum Aufloesen des
-    # `server`-Werts.
+    # The websocket server (port 8928 upward, one per zone) and the connections
+    # it makes out; UDP to resolve the `server` value.
     network inet stream,
     network inet6 stream,
     network inet dgram,

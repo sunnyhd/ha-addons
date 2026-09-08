@@ -1,10 +1,10 @@
 #!/command/with-contenv bash
-# Ein Player je Zone, alle in diesem Container.
+# One player per zone, all in this container.
 #
-# Der Port ist der Grund, warum das hier steht und nicht in fuenf Add-ons: der
-# Player lauscht auf einem, und fuenf Container im Netz des Hosts koennen sich
-# nur um denselben streiten. In einem Container ist es eine Zaehlung --
-# sendspin-cli nimmt ein --port, und seine Hilfe nennt genau diesen Fall.
+# The port is the reason this lives here and not in five add-ons: the player
+# listens on one, and five containers on the host's network can only fight over
+# the same one. In a single container it is a count -- sendspin-cli takes a
+# --port, and its help names exactly this case.
 set -uo pipefail
 
 source /usr/lib/bashio/bashio.sh
@@ -14,20 +14,19 @@ declare -a ZONE_NAME ZONE_OUTPUT ZONE_PID
 ZONE_COUNT=0
 
 # ------------------------------------------------------------------------------
-# Konfiguration
+# Configuration
 # ------------------------------------------------------------------------------
 read_config() {
     local config i count
 
-    # Nicht ueber bashio::config, sondern einmal die ganze Konfiguration und
-    # dann jq: bashio::config kann die JSON-null einer nicht gesetzten Option
-    # nicht vom String "null" unterscheiden und liefert fuer ein leeres
-    # master_sink das Wort "null" -- als Sinkname gelesen ergibt das einen
-    # Ausgang, den es nicht gibt. `// empty` trifft die Unterscheidung.
-    # Ein Fetch, damit ein unerreichbarer Supervisor hier endet und nicht jeden
-    # Wert einzeln in seinen Default fallen laesst.
+    # Not via bashio::config, but the whole configuration once and then jq:
+    # bashio::config cannot tell the JSON null of an unset option from the string
+    # "null" and returns the word "null" for an empty master_sink -- read as a
+    # sink name that is an output which does not exist. `// empty` makes the
+    # distinction. One fetch, so an unreachable Supervisor ends here rather than
+    # letting every value fall through to its default individually.
     config=$(bashio::addon.config) \
-        || bashio::exit.nok 'Die Add-on-Optionen sind vom Supervisor nicht zu lesen.'
+        || bashio::exit.nok 'The add-on options cannot be read from the Supervisor.'
 
     SERVER=$(jq -r '.server // empty' <<< "${config}")
     MASTER=$(jq -r '.master_sink // empty' <<< "${config}")
@@ -39,29 +38,29 @@ read_config() {
         ZONE_NAME[i]=$(jq -r --argjson i "${i}" '.zones[$i].name // empty' <<< "${config}")
         ZONE_OUTPUT[i]=$(jq -r --argjson i "${i}" '.zones[$i].output // empty' <<< "${config}")
         if [ -z "${ZONE_NAME[i]}" ] || [ -z "${ZONE_OUTPUT[i]}" ]; then
-            bashio::exit.nok "Zone $((i + 1)) hat keinen Namen oder keinen Ausgang."
+            bashio::exit.nok "Zone $((i + 1)) has no name or no output."
         fi
     done
     ZONE_COUNT=${count}
 
     if [ "${ZONE_COUNT}" -eq 0 ]; then
-        bashio::exit.nok 'Es ist keine Zone konfiguriert -- ohne mindestens eine gibt es nichts zu spielen.'
+        bashio::exit.nok 'No zone is configured -- without at least one there is nothing to play.'
     fi
 
-    # Ohne das Netz des Hosts kann sich ein Player nicht ueber mDNS anbieten und
-    # der Server nicht zurueckverbinden. Er waehlt sich deshalb ein, und dafuer
-    # muss er wissen, wohin.
+    # Without the host's network a player cannot advertise over mDNS and the
+    # server cannot connect back. It dials out instead, and for that it has to
+    # know where to.
     if [ -z "${SERVER}" ]; then
-        bashio::exit.nok 'Die Adresse des Music-Assistant-Servers fehlt (Feld "Music Assistant server", etwa 192.168.1.10:8927).'
+        bashio::exit.nok 'The Music Assistant server address is missing (field "Music Assistant server", e.g. 192.168.1.10:8927).'
     fi
 
-    # Eine Newline im Wert wuerde Konfigurationsschluessel der eigenen Wahl in
-    # die gerenderte Datei schreiben. Geprueft werden die Werte selbst.
+    # A newline in a value would write configuration keys of the caller's choosing
+    # into the rendered file. The values themselves are checked.
     local value
     for value in "${SERVER}" "${MASTER}" "${LOG_LEVEL}" "${BUFFER_MS}" \
         "${ZONE_NAME[@]}" "${ZONE_OUTPUT[@]}"; do
         if [ "${value}" != "${value%%$'\n'*}" ]; then
-            bashio::exit.nok 'Ein Konfigurationswert enthaelt einen Zeilenumbruch.'
+            bashio::exit.nok 'A configuration value contains a newline.'
         fi
     done
 }
@@ -75,35 +74,35 @@ setup_sinks() {
     if [ -z "${MASTER}" ]; then
         MASTER=$(zone::detect_master)
         if [ -z "${MASTER}" ]; then
-            bashio::exit.nok 'Kein mehrkanaliger Ausgang gefunden. Steht das Profil der Karte auf Surround? Sonst den Sink im Feld "Master sink" eintragen.'
+            bashio::exit.nok 'No multi-channel output found. Is the card profile set to surround? Otherwise enter the sink in the "Master sink" field.'
         fi
-        zone::log "Mehrkanaliger Ausgang erkannt: ${MASTER}"
+        zone::log "Multi-channel output detected: ${MASTER}"
     fi
 
     map=$(zone::channel_map "${MASTER}")
     if [ -z "${map}" ]; then
-        bashio::exit.nok "Der Ausgang ${MASTER} ist PulseAudio nicht bekannt."
+        bashio::exit.nok "The output ${MASTER} is not known to PulseAudio."
     fi
-    zone::log "Kanalmap: ${map}"
+    zone::log "Channel map: ${map}"
 
     zone::ensure_sinks "${MASTER}" "${map}"
 
-    # Was am Ende wirklich da ist -- eine Zone, die auf einen Sink zeigt, den
-    # dieses Geraet nicht hergibt, soll das beim Start sagen und nicht still auf
-    # dem Standardausgang landen.
+    # What is actually there in the end -- a zone pointing at a sink this device
+    # does not provide should say so at startup rather than land silently on the
+    # default output.
     available=$(zone::available_zones "${map}" | cut -d' ' -f1)
     local i
     for ((i = 0; i < ZONE_COUNT; i++)); do
         if ! printf '%s\n' "${available}" | grep -qx "${ZONE_OUTPUT[i]}"; then
-            zone::log "Zone \"${ZONE_NAME[i]}\" ist auf ${ZONE_OUTPUT[i]} gesetzt, das dieser Ausgang nicht hat."
-            zone::log "Vorhanden sind: $(printf '%s' "${available}" | tr '\n' ' ')"
-            bashio::exit.nok 'Bitte die Zone auf ein vorhandenes Ausgangspaar setzen.'
+            zone::log "Zone \"${ZONE_NAME[i]}\" is set to ${ZONE_OUTPUT[i]}, which this output does not have."
+            zone::log "Available are: $(printf '%s' "${available}" | tr '\n' ' ')"
+            bashio::exit.nok 'Please set the zone to an existing output pair.'
         fi
     done
 }
 
 # ------------------------------------------------------------------------------
-# Player
+# Players
 # ------------------------------------------------------------------------------
 start_zone() {
     local i=$1
@@ -116,8 +115,8 @@ start_zone() {
     conf="${RUN_DIR}/z$((i + 1)).conf"
 
     mkdir -p "${state}" "${RUN_DIR}"
-    # Der Server-Wert kann Zugangsdaten tragen, und die Datei ist das, was in
-    # einem Support-Thread zuerst gepastet wird.
+    # The server value can carry credentials, and this file is the first thing
+    # pasted into a support thread.
     install -m 600 /dev/null "${conf}"
     {
         printf 'name = %s\n' "${ZONE_NAME[i]}"
@@ -135,7 +134,7 @@ start_zone() {
     sendspin-cli --config "${conf}" --state-dir "${state}" \
         --control-socket "${sock}" --port "${port}" &
     ZONE_PID[i]=$!
-    zone::log "Zone \"${ZONE_NAME[i]}\" auf ${ZONE_OUTPUT[i]}, Port ${port}, id ${id} (pid ${ZONE_PID[i]})"
+    zone::log "Zone \"${ZONE_NAME[i]}\" on ${ZONE_OUTPUT[i]}, port ${port}, id ${id} (pid ${ZONE_PID[i]})"
 }
 
 stop_all() {
@@ -152,7 +151,7 @@ main() {
     trap stop_all TERM INT
 
     read_config
-    zone::wait_for_pulse || bashio::exit.nok 'PulseAudio ist nicht erreichbar.'
+    zone::wait_for_pulse || bashio::exit.nok 'PulseAudio is not reachable.'
     setup_sinks
 
     local i
@@ -160,17 +159,17 @@ main() {
         start_zone "${i}"
     done
 
-    # Die Schleife haelt zweierlei am Leben. Einen Player, der endet, startet sie
-    # neu -- anders als beim Original, wo ein Fehler den Container stoppt, denn
-    # hier haengen vier weitere Zonen daran, die nichts dafuer koennen. Und sie
-    # merkt, wenn die Sinks verschwunden sind: ein Neustart des Audio-Plugins
-    # nimmt sie mit, und ohne sie spielt jeder Player ins Leere.
+    # The loop keeps two things alive. A player that ends it restarts -- unlike
+    # the original, where a failure stops the container, because here four other
+    # zones hang off it that are not at fault. And it notices when the sinks have
+    # disappeared: a restart of the audio plugin takes them with it, and without
+    # them every player plays into the void.
     local tick=0
     while :; do
         sleep 5
         for ((i = 0; i < ZONE_COUNT; i++)); do
             if ! kill -0 "${ZONE_PID[i]}" 2> /dev/null; then
-                zone::log "Zone \"${ZONE_NAME[i]}\" ist beendet worden, wird neu gestartet."
+                zone::log "Zone \"${ZONE_NAME[i]}\" has ended, restarting it."
                 start_zone "${i}"
             fi
         done

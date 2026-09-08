@@ -1,173 +1,171 @@
 # Local Audio Zones
 
-Teilt einen mehrkanaligen Audio-Ausgang in unabhaengige Stereo-Zonen und spielt
-jede als eigenen Sendspin-Player fuer Music Assistant. Ein achtkanaliges
-USB-Interface wird so zu vier Stereo-Zonen -- ein Player je Ausgangspaar, jeder
-mit eigener Lautstaerke, Warteschlange und Gruppenzugehoerigkeit -- plus einer
-Zone, die auf alle Ausgaenge zugleich spielt.
+Splits one multi-channel audio output into independent stereo zones and plays
+each as its own Sendspin player for Music Assistant. An eight-channel USB
+interface becomes four stereo zones -- one player per output pair, each with its
+own volume, queue and group membership -- plus one zone that plays to every
+output at once.
 
-## Einrichtung
+## Setup
 
-1. **Interface anschliessen und Profil setzen.** Auf der Home-Assistant-Konsole:
+1. **Plug the interface in and set the profile.** On the Home Assistant console:
 
    ```sh
    ha audio info
-   ha audio profile --card <kartenname> --name output:analog-surround-71
+   ha audio profile --card <card-name> --name output:analog-surround-71
    ha audio restart
    ```
 
-   Ein Geraet auf `analog-stereo` hat zwei Kanaele und nichts aufzuteilen.
+   A device on `analog-stereo` has two channels and nothing to split.
 
-2. **Add-on installieren**, **Music Assistant server** auf `<ha-ip>:8927`
-   setzen, und je genutztem Ausgangspaar eine Zone eintragen (Name + Ausgang).
+2. **Install the add-on**, set **Music Assistant server** to `<ha-ip>:8927`, and
+   add one zone per output pair you use (name + output).
 
-3. **Starten.** Das Log nennt den gefundenen Ausgang, seine Kanalmap und jede
-   gestartete Zone.
+3. **Start it.** The log names the output it found, its channel map and every
+   zone it started.
 
-Kein Eingriff auf dem Host, kein Docker-Zugriff, kein abgeschalteter
-Schutzmodus -- das Add-on legt die Sinks selbst ueber die PulseAudio an, die
-Home Assistant hereinreicht.
+No change on the host, no Docker access, no disabled protection mode -- the
+add-on creates the sinks itself through the PulseAudio that Home Assistant maps
+in.
 
-## Optionen
+## Options
 
-| Option | Bedeutung |
+| Option | Meaning |
 | --- | --- |
-| **Music Assistant server** | Adresse des MA-Servers, `host:port` (meist `<ha-ip>:8927`). **Pflicht**: jede Zone laeuft im eigenen Netzwerk-Namespace, kann sich also nicht ueber mDNS anbieten und waehlt sich beim Server ein. |
-| **Zones** | Eine Zeile je Zone: `name` (so heisst der Player in MA) und `output` (das Ausgangspaar). |
-| **Master sink** | Welcher mehrkanalige Ausgang aufgeteilt wird. Leer = automatisch der erste mit mehr als zwei Kanaelen. |
-| **Audio buffer** | Wie viel Audio jeder Player puffert (ms). Hochsetzen, wo der Ton abreisst. |
+| **Music Assistant server** | Address of the MA server, `host:port` (usually `<ha-ip>:8927`). **Required**: each zone runs in its own network namespace, so it cannot advertise over mDNS and dials out to the server instead. |
+| **Zones** | One entry per zone: `name` (the player's name in MA) and `output` (the output pair). |
+| **Master sink** | Which multi-channel output to split. Empty = automatically the first one with more than two channels. |
+| **Audio buffer** | How much audio each player buffers (ms). Raise it where the sound breaks up. |
 
-## Welcher Ausgang ist welcher
+## Which output is which
 
-| Zonen-Ausgang | Buchsen | Kanalpositionen |
+| Zone output | Sockets | Channel positions |
 | --- | --- | --- |
 | `out_1_2_front` | 1 / 2 | front-left, front-right |
 | `out_3_4_rear` | 3 / 4 | rear-left, rear-right |
 | `out_5_6_center_sub` | 5 / 6 | front-center, lfe |
 | `out_7_8_side` | 7 / 8 | side-left, side-right |
-| `out_all` | alle | die volle Kanalmap |
+| `out_all` | all | the full channel map |
 
-Die Namen sind PulseAudio-Kanalpositionen, keine Aussage darueber, was
-angeschlossen ist -- `out_5_6_center_sub` ist ein Etikett fuer zwei Buchsen,
-kein Subwoofer.
+The names are PulseAudio channel positions, not a claim about what is connected
+-- `out_5_6_center_sub` is a label for two sockets, not a subwoofer.
 
-## Wichtig: geraeteabhaengige Kanalordnung
+## Important: device-dependent channel order
 
-Manche Interfaces melden ihre acht Kanaele **nicht** in der Standard-7.1-Ordnung.
-Die ESI GIGAPORT eX etwa hat die Reihenfolge
+Some interfaces report their eight channels **not** in the standard 7.1 order.
+The ESI GIGAPORT eX, for instance, uses the order
 
 ```
 FL FR FC LFE RL RR FLC FRC
 ```
 
-waehrend PulseAudio `FL FR RL RR FC LFE SL SR` annimmt. Dadurch landen zwei
-Zonen auf vertauschten Buchsen (bei der GIGAPORT eX: das rear-Paar auf 5/6, das
-center/lfe-Paar auf 3/4). Der Effekt ist rein die Zuordnung -- der Ton kommt
-sauber, nur aus dem falschen Paar.
+while PulseAudio assumes `FL FR RL RR FC LFE SL SR`. As a result two zones end
+up on swapped sockets (on the GIGAPORT eX: the rear pair on 5/6, the center/lfe
+pair on 3/4). The effect is purely the mapping -- the sound is clean, just out
+of the wrong pair.
 
-**So prueft und korrigiert man das:** Eine Zone nach der anderen abspielen und
-sehen/hoeren, aus welchem Ausgang sie kommt. Landet eine Zone falsch, in den
-Optionen die beiden betroffenen `output`-Werte tauschen. Beispiel GIGAPORT eX:
+**How to check and fix it:** play one zone at a time and see/hear which output
+it comes from. If a zone is wrong, swap the two affected `output` values in the
+options. GIGAPORT eX example:
 
-| Raum | soll Buchse | `output` |
+| Room | should be socket | `output` |
 | --- | --- | --- |
-| Kueche | 3 / 4 | `out_5_6_center_sub` |
-| Bad | 5 / 6 | `out_3_4_rear` |
+| Kitchen | 3 / 4 | `out_5_6_center_sub` |
+| Bathroom | 5 / 6 | `out_3_4_rear` |
 
-## Stolpersteine aus der Praxis
+## Pitfalls from practice
 
-- **Bus-powered Interface an schwachem USB-Port.** Ein bus-versorgtes Interface
-  kann am USB genug Strom fuer den Digitalteil bekommen (Enumeration,
-  Power-LED), aber zu wenig fuer die analoge Ausgangsstufe -- dann sind die
-  Ausgaenge stumm und die Signal-LEDs bleiben aus, **ohne** dass der Kernel
-  einen Fehler meldet. Abhilfe: ein **USB-3-Port** (liefert mehr Strom) oder ein
-  aktiver USB-Hub. Bei der GIGAPORT eX war genau das die Ursache stummer
-  Ausgaenge.
+- **Bus-powered interface on a weak USB port.** A bus-powered interface can draw
+  enough current over USB for the digital section (enumeration, power LED) but
+  too little for the analog output stage -- then the outputs are silent and the
+  signal LEDs stay dark, **without** the kernel reporting any error. Fix: a
+  **USB 3 port** (delivers more current) or a powered USB hub. On the GIGAPORT
+  eX this was exactly the cause of silent outputs.
 
-- **HAOS als VM mit USB-Passthrough.** USB-Audio ist isochron und reagiert
-  empfindlich auf Virtualisierung. Passthrough des **ganzen PCI-USB-Controllers**
-  ist deutlich zuverlaessiger als das Durchreichen eines einzelnen USB-Geraets.
-  Kommt der Ton auf Bare-Metal (Laptop) aber nicht in der VM, ist das der
-  Verdacht.
+- **HAOS as a VM with USB passthrough.** USB audio is isochronous and sensitive
+  to virtualization. Passing through the **whole PCI USB controller** is far
+  more reliable than passing a single USB device. If the sound works on
+  bare metal (a laptop) but not in the VM, this is the suspect.
 
-- **Kein Ton, aber Signal-LEDs pruefen zuerst.** Die 8 Signal-LEDs zeigen
-  anliegendes Audio je Kanal. Leuchten sie, kommt das Signal an -- auch wenn
-  keine Lautsprecher angeschlossen sind. Erst die LEDs, dann die Kette dahinter.
+- **No sound? Check the signal LEDs first.** The 8 signal LEDs show audio present
+  per channel. If they light, the signal is arriving -- even with no speakers
+  connected. LEDs first, then the chain behind them.
 
-## Wie es funktioniert
+## How it works
 
-Ein Add-on laeuft einmal pro Slug, und der Player lauscht auf einem festen Port
-(8928). Fuenf Container im Netz des Hosts koennten sich nur um denselben Port
-streiten -- in **einem** Container ist es eine Zaehlung: `sendspin-cli` nimmt ein
-`--port`, und seine Hilfe nennt genau zwei Player auf einem Host als den Fall
-dafuer. Deshalb laufen alle Zonen hier in einem Container, jede auf ihrem
-eigenen Port.
+An add-on runs once per slug, and the player listens on a fixed port (8928).
+Five containers sharing the host's network could only fight over the same port
+-- in **one** container it is a count: `sendspin-cli` takes a `--port`, and its
+help names exactly two players on one host as the case for it. That is why every
+zone here runs in one container, each on its own port.
 
-Jede Zone bekommt eine eigene, stabile `SENDSPIN_ID` (aus einer einmalig in
-`/data` erzeugten Kennung). Ohne die wuerden alle dieselbe aus der MAC ableiten,
-und ein Server legt Lautstaerke, Gruppen und Pairing je ID ab -- die
-Einstellungen aller Zonen landeten sonst auf der zuletzt verbundenen.
+Each zone gets its own stable `SENDSPIN_ID` (from an identifier generated once
+in `/data`). Without it they would all derive the same one from the NIC MAC, and
+a server files volume, group membership and pairing under that id -- every zone's
+settings would then land on whichever connected last.
 
-Das Add-on nutzt das Image von
+The add-on uses the image from
 [music-assistant/local-audio-addon](https://github.com/music-assistant/local-audio-addon),
-mit seinem eigenen Dienst an Stelle des Einzel-Player-Dienstes.
+with its own service in place of the single-player service.
 
-## Eingänge (derzeit nicht unterstützt)
+## Inputs (not supported yet)
 
-Dieses Add-on teilt **Ausgänge** in Zonen. Audio-**Eingänge** eines Interfaces
-(Line-In, Plattenspieler, Mikrofon) werden nicht unterstützt -- auch dann nicht,
-wenn die Karte Eingänge hat (die ESI GIGAPORT eX etwa bietet `input:analog-stereo`).
+This add-on splits **outputs** into zones. Audio **inputs** of an interface
+(line-in, turntable, microphone) are not supported -- not even when the card has
+inputs (the ESI GIGAPORT eX, for example, offers `input:analog-stereo`).
 
-Der Grund liegt nicht am Add-on, sondern eine Ebene tiefer: Music Assistant hat
-serverseitig zwar einen Provider dafür (`sendspin_source` -- "Play live audio
-inputs (line-in, turntable, microphone) from Sendspin clients that support the
-source role"), aber der Player, auf dem dieses Add-on aufsetzt, `sendspin-cli`,
-**implementiert die Source-Rolle nicht** und hat keine Capture-Funktion. Ein
-Eingang lässt sich damit gar nicht erst als Quelle anmelden, unabhängig von
-diesem Add-on.
+The reason is not the add-on but one layer below: Music Assistant does have a
+server-side provider for it (`sendspin_source` -- "Play live audio inputs
+(line-in, turntable, microphone) from Sendspin clients that support the source
+role"), but the player this add-on builds on, `sendspin-cli`, **does not
+implement the source role** and has no capture function. An input cannot even be
+registered as a source, independent of this add-on.
 
-Sobald `sendspin-cli` die Source-Rolle unterstützt (upstream aktuell kein
-offenes Issue dazu), ließe sich das nachziehen. Bis dahin ist der Weg für eine
-Line-In-Quelle ein separater Stream (z. B. `parec`/`ffmpeg` → HTTP), den man in
-Music Assistant als Radioquelle einbindet -- ohne Sync zu den Zonen und ohne
-`line_sense`.
+Once `sendspin-cli` supports the source role (no open upstream issue for it at
+present), this could follow. Until then the path for a line-in source is a
+separate stream (e.g. `parec`/`ffmpeg` → HTTP) added to Music Assistant as a
+radio source -- without sync to the zones and without `line_sense`.
 
-## Wartung / Aktualisierung
+## Maintenance / updating
 
-Dieses Add-on erbt sein Image vom Upstream
+This add-on inherits its image from upstream
 [music-assistant/local-audio-addon](https://github.com/music-assistant/local-audio-addon)
-(`FROM ghcr.io/music-assistant/local-audio-addon:<tag>` im Dockerfile). Daraus
-kommen `sendspin-cli`, `pactl`, s6-overlay und das sicherheitsgepruefte
-Basis-Image. Die Zonen-Logik dieses Add-ons ist davon unabhaengig.
+(`FROM ghcr.io/music-assistant/local-audio-addon:<tag>` in the Dockerfile). From
+there come `sendspin-cli`, `pactl`, s6-overlay and the security-reviewed base
+image. The zone logic of this add-on is independent of it.
 
-**Automatisch:** Der Workflow `.github/workflows/upstream-bump.yml` prueft
-woechentlich (und auf Knopfdruck) den neuesten Upstream-Release und oeffnet bei
-einer neuen Version einen Pull Request, der den `FROM`-Tag **und** `version` in
-config.yaml gemeinsam anhebt und einen CHANGELOG-Eintrag mit Test-Checkliste
-ergaenzt. Damit der Workflow PRs oeffnen darf, muss in den Repo-Einstellungen
-einmalig **Settings → Actions → General → "Allow GitHub Actions to create and
-approve pull requests"** aktiviert sein.
+**Automatic:** the workflow `.github/workflows/upstream-bump.yml` checks the
+latest upstream release weekly (and on demand) and opens a pull request on a new
+version that raises the `FROM` tag in the Dockerfile and bumps the add-on
+`version` in config.yaml (as a patch), with a CHANGELOG entry and a test
+checklist. For the workflow to open PRs, enable once in the repo settings:
+**Settings → Actions → General → "Allow GitHub Actions to create and approve
+pull requests"**.
 
-**Manuell (Rueckfallebene):**
+Note that the two versions are separate: the `FROM` tag is the upstream *image*
+version, while `version` in config.yaml is this add-on's own version (its own
+line, bumped per patch so the Supervisor shows "update available").
+
+**Manual (fallback):**
 
 ```sh
-# neuesten Upstream-Tag ermitteln
+# find the latest upstream tag
 gh api repos/music-assistant/local-audio-addon/releases/latest --jq .tag_name
-# im Dockerfile FROM ...:<neu> und in config.yaml version: "<neu>" setzen (gleich halten)
+# set FROM ...:<new> in the Dockerfile, and bump version: "<x.y.z+1>" in config.yaml
 ```
 
-**Nach jedem Bump testen** -- ein Bump ist nicht fertig, bevor das steht:
+**Test after every bump** -- a bump is not done until this holds:
 
-1. Add-on **rebuild** laeuft durch. Die Assertion im Dockerfile faengt eine
-   Umstrukturierung der s6-Dienste im Basis-Image als **roten Build** ab, statt
-   sie still durchzulassen (ein umbenannter Dienst wuerde sonst neben unserem
-   starten und den Port-8928-Streit zurueckbringen).
-2. `docker exec hassio_audio pactl list sinks short` zeigt die Zonen-Sinks
+1. The add-on **rebuild** completes. The assertion in the Dockerfile catches a
+   restructuring of the s6 services in the base image as a **red build**, rather
+   than letting it pass silently (a renamed service would otherwise start beside
+   ours and bring back the port-8928 fight).
+2. `docker exec hassio_audio pactl list sinks short` shows the zone sinks
    (`out_*`).
-3. Das Add-on-Log zeigt einen `handshake complete` je Zone.
-4. Ein Testton je Zone kommt auf dem erwarteten Ausgang.
+3. The add-on log shows one `handshake complete` per zone.
+4. A test tone per zone comes out of the expected output.
 
-Multichannel ist laut Upstream bewusst *ausserhalb* des Music-Assistant-Cores
-(PR music-assistant/server#5132 wurde "Addressed outside Music Assistant Core"
-geschlossen). Dieses Community-Add-on ist damit der vorgesehene Ort fuer die
-Zonen-Aufteilung; der Upstream bleibt der Einzel-Player.
+Multi-channel is deliberately *outside* the Music Assistant core per upstream
+(PR music-assistant/server#5132 was closed "Addressed outside Music Assistant
+Core"). This community add-on is therefore the intended place for the zone
+split; upstream stays the single player.

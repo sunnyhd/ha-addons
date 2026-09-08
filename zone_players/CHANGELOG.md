@@ -2,17 +2,16 @@
 
 ## 0.1.0
 
-Erste Version.
+Initial release.
 
-- Teilt einen mehrkanaligen Ausgang in unabhaengige Stereo-Zonen und spielt
-  jede als eigener Sendspin-Player fuer Music Assistant -- alle Player in einem
-  Container, jeder auf seinem eigenen Port (8928 aufwaerts).
-- Legt die `module-remap-sink`-Sinks beim Start selbst an, liest dazu die
-  Kanalmap des Ausgangs und rechnet daraus die moeglichen Paare. Ein Watchdog
-  startet einen beendeten Player neu und legt die Sinks wieder an, falls ein
-  Neustart des Audio-Plugins sie mitnimmt.
-- Zonen werden in den Add-on-Optionen eingetragen; Sink, Anzeigename und Server
-  je Zone. Kein manuelles Editieren von Dateien auf dem Host.
-- Setzt den Master-Sink auf 100 % und suspendiert/reaktiviert ihn nach dem
-  Anlegen der Zonen -- gegen eine von `module-device-restore` gespeicherte
-  Lautstaerke, die sonst unsichtbar unter jeder Zone daempft.
+- Splits a multi-channel output into independent stereo zones and plays each as
+  its own Sendspin player for Music Assistant -- all players in one container,
+  each on its own port (8928 upward).
+- Creates the `module-remap-sink` sinks itself at startup, reading the output's
+  channel map to compute the possible pairs. A watchdog restarts a stopped
+  player and recreates the sinks if a restart of the audio plugin removes them.
+- Zones are configured in the add-on options; sink, display name and server per
+  zone. No manual editing of files on the host.
+- Pins the master sink to 100% and suspends/resumes it after creating the zones
+  -- against a volume saved by `module-device-restore` that would otherwise
+  attenuate every zone invisibly.
