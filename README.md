@@ -62,6 +62,11 @@ ist bislang nur die GIGAPORT eX; andere Geräte können eine abweichende
 Kanalordnung mitbringen (dann greift der Zuordnungs-Schritt aus DOCS.md).
 Rückmeldungen zu weiteren Interfaces sind willkommen.
 
+Aufgeteilt werden **Ausgänge**. Audio-**Eingänge** (Line-In, Plattenspieler,
+Mikrofon) werden derzeit nicht unterstützt — der zugrunde liegende Player
+`sendspin-cli` implementiert die Sendspin-Source-Rolle nicht; Details in
+DOCS.md.
+
 Ausgangs-Zuordnung, geräteabhängige Kanalordnung, USB-Strom bei bus-powered
 Interfaces und der Betrieb unter HAOS-in-einer-VM sind in
 [`zone_players/DOCS.md`](zone_players/DOCS.md) bzw. im Dokumentations-Tab des

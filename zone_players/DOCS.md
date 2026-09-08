@@ -112,6 +112,26 @@ Das Add-on nutzt das Image von
 [music-assistant/local-audio-addon](https://github.com/music-assistant/local-audio-addon),
 mit seinem eigenen Dienst an Stelle des Einzel-Player-Dienstes.
 
+## Eingänge (derzeit nicht unterstützt)
+
+Dieses Add-on teilt **Ausgänge** in Zonen. Audio-**Eingänge** eines Interfaces
+(Line-In, Plattenspieler, Mikrofon) werden nicht unterstützt -- auch dann nicht,
+wenn die Karte Eingänge hat (die ESI GIGAPORT eX etwa bietet `input:analog-stereo`).
+
+Der Grund liegt nicht am Add-on, sondern eine Ebene tiefer: Music Assistant hat
+serverseitig zwar einen Provider dafür (`sendspin_source` -- "Play live audio
+inputs (line-in, turntable, microphone) from Sendspin clients that support the
+source role"), aber der Player, auf dem dieses Add-on aufsetzt, `sendspin-cli`,
+**implementiert die Source-Rolle nicht** und hat keine Capture-Funktion. Ein
+Eingang lässt sich damit gar nicht erst als Quelle anmelden, unabhängig von
+diesem Add-on.
+
+Sobald `sendspin-cli` die Source-Rolle unterstützt (upstream aktuell kein
+offenes Issue dazu), ließe sich das nachziehen. Bis dahin ist der Weg für eine
+Line-In-Quelle ein separater Stream (z. B. `parec`/`ffmpeg` → HTTP), den man in
+Music Assistant als Radioquelle einbindet -- ohne Sync zu den Zonen und ohne
+`line_sense`.
+
 ## Wartung / Aktualisierung
 
 Dieses Add-on erbt sein Image vom Upstream
