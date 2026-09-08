@@ -53,6 +53,15 @@ Host, kein Docker-Zugriff, kein abgeschalteter Schutzmodus):
 | `buffer_ms` | Puffer je Player in Millisekunden, gegen Aussetzer auf langsamen Systemen. |
 | `log_level` | `debug` … `error`. |
 
+**Getestet mit** einer ESI GIGAPORT eX (USB, 8 Ausgänge). Der Ansatz ist aber
+nicht auf dieses Modell festgelegt: das Add-on liest die Kanalmap des Ausgangs
+zur Laufzeit, statt ein Gerät fest anzunehmen. Andere mehrkanalige USB-Interfaces
+— und grundsätzlich jede Soundkarte, die Home Assistants PulseAudio mit einem
+Mehrkanal-Profil erkennt — sollten daher ebenso funktionieren. Real verifiziert
+ist bislang nur die GIGAPORT eX; andere Geräte können eine abweichende
+Kanalordnung mitbringen (dann greift der Zuordnungs-Schritt aus DOCS.md).
+Rückmeldungen zu weiteren Interfaces sind willkommen.
+
 Ausgangs-Zuordnung, geräteabhängige Kanalordnung, USB-Strom bei bus-powered
 Interfaces und der Betrieb unter HAOS-in-einer-VM sind in
 [`zone_players/DOCS.md`](zone_players/DOCS.md) bzw. im Dokumentations-Tab des
