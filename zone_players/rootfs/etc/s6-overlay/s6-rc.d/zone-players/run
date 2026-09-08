@@ -1,0 +1,179 @@
+#!/command/with-contenv bash
+# Ein Player je Zone, alle in diesem Container.
+#
+# Der Port ist der Grund, warum das hier steht und nicht in fuenf Add-ons: der
+# Player lauscht auf einem, und fuenf Container im Netz des Hosts koennen sich
+# nur um denselben streiten. In einem Container ist es eine Zaehlung --
+# sendspin-cli nimmt ein --port, und seine Hilfe nennt genau diesen Fall.
+set -uo pipefail
+
+source /usr/lib/bashio/bashio.sh
+source /usr/lib/zone-players/common.sh
+
+declare -a ZONE_NAME ZONE_OUTPUT ZONE_PID
+ZONE_COUNT=0
+
+# ------------------------------------------------------------------------------
+# Konfiguration
+# ------------------------------------------------------------------------------
+read_config() {
+    local i count
+
+    SERVER=$(bashio::config 'server' '')
+    MASTER=$(bashio::config 'master_sink' '')
+    LOG_LEVEL=$(bashio::config 'log_level' 'info')
+    BUFFER_MS=$(bashio::config 'buffer_ms' '')
+
+    count=$(bashio::config 'zones | length' 0)
+    for ((i = 0; i < count; i++)); do
+        ZONE_NAME[i]=$(bashio::config "zones[${i}].name" '')
+        ZONE_OUTPUT[i]=$(bashio::config "zones[${i}].output" '')
+        if [ -z "${ZONE_NAME[i]}" ] || [ -z "${ZONE_OUTPUT[i]}" ]; then
+            bashio::exit.nok "Zone $((i + 1)) hat keinen Namen oder keinen Ausgang."
+        fi
+    done
+    ZONE_COUNT=${count}
+
+    if [ "${ZONE_COUNT}" -eq 0 ]; then
+        bashio::exit.nok 'Es ist keine Zone konfiguriert -- ohne mindestens eine gibt es nichts zu spielen.'
+    fi
+
+    # Ohne das Netz des Hosts kann sich ein Player nicht ueber mDNS anbieten und
+    # der Server nicht zurueckverbinden. Er waehlt sich deshalb ein, und dafuer
+    # muss er wissen, wohin.
+    if [ -z "${SERVER}" ]; then
+        bashio::exit.nok 'Die Adresse des Music-Assistant-Servers fehlt (Feld "Music Assistant server", etwa 192.168.1.10:8927).'
+    fi
+
+    # Eine Newline im Wert wuerde Konfigurationsschluessel der eigenen Wahl in
+    # die gerenderte Datei schreiben.
+    local name value
+    for name in SERVER MASTER LOG_LEVEL BUFFER_MS "${ZONE_NAME[@]}" "${ZONE_OUTPUT[@]}"; do
+        value=${!name-$name}
+        if [ "${value}" != "${value%%$'\n'*}" ]; then
+            bashio::exit.nok 'Ein Konfigurationswert enthaelt einen Zeilenumbruch.'
+        fi
+    done
+}
+
+# ------------------------------------------------------------------------------
+# Sinks
+# ------------------------------------------------------------------------------
+setup_sinks() {
+    local map available
+
+    if [ -z "${MASTER}" ]; then
+        MASTER=$(zone::detect_master)
+        if [ -z "${MASTER}" ]; then
+            bashio::exit.nok 'Kein mehrkanaliger Ausgang gefunden. Steht das Profil der Karte auf Surround? Sonst den Sink im Feld "Master sink" eintragen.'
+        fi
+        zone::log "Mehrkanaliger Ausgang erkannt: ${MASTER}"
+    fi
+
+    map=$(zone::channel_map "${MASTER}")
+    if [ -z "${map}" ]; then
+        bashio::exit.nok "Der Ausgang ${MASTER} ist PulseAudio nicht bekannt."
+    fi
+    zone::log "Kanalmap: ${map}"
+
+    zone::ensure_sinks "${MASTER}" "${map}"
+
+    # Was am Ende wirklich da ist -- eine Zone, die auf einen Sink zeigt, den
+    # dieses Geraet nicht hergibt, soll das beim Start sagen und nicht still auf
+    # dem Standardausgang landen.
+    available=$(zone::available_zones "${map}" | cut -d' ' -f1)
+    local i
+    for ((i = 0; i < ZONE_COUNT; i++)); do
+        if ! printf '%s\n' "${available}" | grep -qx "${ZONE_OUTPUT[i]}"; then
+            zone::log "Zone \"${ZONE_NAME[i]}\" ist auf ${ZONE_OUTPUT[i]} gesetzt, das dieser Ausgang nicht hat."
+            zone::log "Vorhanden sind: $(printf '%s' "${available}" | tr '\n' ' ')"
+            bashio::exit.nok 'Bitte die Zone auf ein vorhandenes Ausgangspaar setzen.'
+        fi
+    done
+}
+
+# ------------------------------------------------------------------------------
+# Player
+# ------------------------------------------------------------------------------
+start_zone() {
+    local i=$1
+    local id port conf state sock
+
+    id="$(zone::instance_id)-z$((i + 1))"
+    port=$((BASE_PORT + i))
+    state="${STATE_ROOT}/z$((i + 1))"
+    sock="${RUN_DIR}/z$((i + 1)).sock"
+    conf="${RUN_DIR}/z$((i + 1)).conf"
+
+    mkdir -p "${state}" "${RUN_DIR}"
+    # Der Server-Wert kann Zugangsdaten tragen, und die Datei ist das, was in
+    # einem Support-Thread zuerst gepastet wird.
+    install -m 600 /dev/null "${conf}"
+    {
+        printf 'name = %s\n' "${ZONE_NAME[i]}"
+        printf 'output = pulse:%s\n' "${ZONE_OUTPUT[i]}"
+        printf 'log-level = %s\n' "${LOG_LEVEL}"
+        printf 'server = %s\n' "${SERVER}"
+        printf 'id = %s\n' "${id}"
+        printf 'manufacturer = %s\n' 'Music Assistant'
+        printf 'product-name = %s\n' 'Local Audio'
+        if [ -n "${BUFFER_MS}" ]; then
+            printf 'buffer-ms = %s\n' "${BUFFER_MS}"
+        fi
+    } > "${conf}"
+
+    sendspin-cli --config "${conf}" --state-dir "${state}" \
+        --control-socket "${sock}" --port "${port}" &
+    ZONE_PID[i]=$!
+    zone::log "Zone \"${ZONE_NAME[i]}\" auf ${ZONE_OUTPUT[i]}, Port ${port}, id ${id} (pid ${ZONE_PID[i]})"
+}
+
+stop_all() {
+    local i
+    for ((i = 0; i < ZONE_COUNT; i++)); do
+        [ -n "${ZONE_PID[i]:-}" ] && kill "${ZONE_PID[i]}" 2> /dev/null
+    done
+    wait
+    exit 0
+}
+
+# ------------------------------------------------------------------------------
+main() {
+    trap stop_all TERM INT
+
+    read_config
+    zone::wait_for_pulse || bashio::exit.nok 'PulseAudio ist nicht erreichbar.'
+    setup_sinks
+
+    local i
+    for ((i = 0; i < ZONE_COUNT; i++)); do
+        start_zone "${i}"
+    done
+
+    # Die Schleife haelt zweierlei am Leben. Einen Player, der endet, startet sie
+    # neu -- anders als beim Original, wo ein Fehler den Container stoppt, denn
+    # hier haengen vier weitere Zonen daran, die nichts dafuer koennen. Und sie
+    # merkt, wenn die Sinks verschwunden sind: ein Neustart des Audio-Plugins
+    # nimmt sie mit, und ohne sie spielt jeder Player ins Leere.
+    local tick=0
+    while :; do
+        sleep 5
+        for ((i = 0; i < ZONE_COUNT; i++)); do
+            if ! kill -0 "${ZONE_PID[i]}" 2> /dev/null; then
+                zone::log "Zone \"${ZONE_NAME[i]}\" ist beendet worden, wird neu gestartet."
+                start_zone "${i}"
+            fi
+        done
+
+        tick=$((tick + 1))
+        if [ $((tick % 6)) -eq 0 ]; then
+            if [ -S "${PULSE_SOCKET}" ]; then
+                local map
+                map=$(zone::channel_map "${MASTER}")
+                [ -n "${map}" ] && zone::ensure_sinks "${MASTER}" "${map}"
+            fi
+        fi
+    done
+}
+
+main "$@"

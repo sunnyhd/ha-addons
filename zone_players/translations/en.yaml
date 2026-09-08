@@ -1,0 +1,30 @@
+configuration:
+  server:
+    name: Music Assistant server
+    description: >-
+      Address of the Music Assistant server, as `host:port` — usually your Home
+      Assistant machine on port 8927. Required: each zone runs in this add-on's
+      own network namespace, so a player cannot be discovered over mDNS and
+      dials out to the server instead.
+  log_level:
+    name: Log level
+    description: How much the players write to the log.
+  zones:
+    name: Zones
+    description: >-
+      One entry per zone. `name` is what the zone is called in Music Assistant;
+      `output` is the pair of outputs it plays to. Add as many as the interface
+      has pairs — an eight-channel device gives four, plus `out_all` for playing
+      to every output at once.
+  master_sink:
+    name: Master sink
+    description: >-
+      Which multi-channel output to split. Leave empty and the add-on picks the
+      first one with more than two channels, which is the right answer on a
+      machine with one interface. Names come from `ha audio info`.
+  buffer_ms:
+    name: Audio buffer
+    description: >-
+      How much audio each player keeps buffered, in milliseconds. Raise it where
+      the sound breaks up, at the cost of a longer wait when a track starts.
+      Left empty the player uses its own default.

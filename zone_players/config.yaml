@@ -1,0 +1,41 @@
+name: Local Audio Zones
+version: "0.1.0"
+slug: zone_players
+description: >-
+  Teilt einen mehrkanaligen Audio-Ausgang in unabhaengige Stereo-Zonen und
+  spielt jede als eigener Sendspin-Player fuer Music Assistant.
+url: https://github.com/sunnyhd/ha-addons
+arch:
+  - amd64
+  - aarch64
+stage: experimental
+# Vor Home Assistant, damit die Zonen schon anbieten, wenn Music Assistant zu
+# suchen beginnt.
+startup: services
+# Das Image bringt sein eigenes s6-overlay v3 mit.
+init: false
+# Eigener Netzwerk-Namespace. Die Player lauschen auf 8928 aufwaerts, einer je
+# Zone; im Netz des Hosts waeren das ebenso viele Bewerber um denselben Port wie
+# Zonen. Ohne Host-Netz gibt es dafuer kein mDNS -- deshalb ist `server` unten
+# Pflicht und der Player waehlt sich ein, statt gefunden zu werden.
+host_network: false
+# Reicht Home Assistants PulseAudio herein: den Socket unter /run/audio, ueber
+# den dieses Add-on die Zonen anlegt und bespielt.
+audio: true
+options:
+  server: ""
+  log_level: info
+  zones:
+    - name: Wohnzimmer
+      output: out_1_2_front
+# `master_sink` und `buffer_ms` sind ohne Vorgabe und stehen deshalb hinter der
+# Klappe, die man absichtlich aufmacht: der Ausgang wird erkannt, und die
+# Puffergroesse gehoert upstream.
+schema:
+  server: str
+  master_sink: str?
+  log_level: list(debug|info|warning|error)
+  buffer_ms: int(10,2000)?
+  zones:
+    - name: str
+      output: list(out_1_2_front|out_3_4_rear|out_5_6_center_sub|out_7_8_side|out_all)

@@ -23,10 +23,22 @@ ohne Anmeldung.
 
 ## Enthaltene Add-ons
 
+### Local Audio Zones
+
+**Der empfohlene Weg.** Ein einziges Add-on, das alles macht: es findet den
+mehrkanaligen Ausgang, liest dessen Kanalmap, legt die Zonen-Sinks selbst an
+und startet je Zone einen Player — alle in einem Container, jeder auf seinem
+eigenen Port.
+
+Die Zonen werden in der Add-on-Konfiguration eingetragen, so viele wie das
+Interface Ausgangspaare hat. Keine Datei auf dem Host, kein Docker-Zugriff,
+kein abgeschalteter Schutzmodus.
+
 ### Local Audio Zone 1–5
 
-Je ein Sendspin-Player für Music Assistant, der auf **einen** PulseAudio-Sink
-spielt. Mehrere davon teilen ein mehrkanaliges Audio-Interface in unabhängige
+Der ältere Weg: je ein Add-on pro Zone. Jedes ist ein Sendspin-Player, der auf
+**einen** PulseAudio-Sink spielt, und die Sinks müssen vorher von Hand angelegt
+werden (siehe unten). Wer *Local Audio Zones* nutzt, braucht diese nicht. Mehrere davon teilen ein mehrkanaliges Audio-Interface in unabhängige
 Stereo-Zonen auf: ein Player je Ausgangspaar, jeder mit eigener Lautstärke,
 eigener Warteschlange und eigener Gruppenzugehörigkeit.
 
