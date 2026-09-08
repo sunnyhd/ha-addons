@@ -17,17 +17,27 @@ ZONE_COUNT=0
 # Konfiguration
 # ------------------------------------------------------------------------------
 read_config() {
-    local i count
+    local config i count
 
-    SERVER=$(bashio::config 'server' '')
-    MASTER=$(bashio::config 'master_sink' '')
-    LOG_LEVEL=$(bashio::config 'log_level' 'info')
-    BUFFER_MS=$(bashio::config 'buffer_ms' '')
+    # Nicht ueber bashio::config, sondern einmal die ganze Konfiguration und
+    # dann jq: bashio::config kann die JSON-null einer nicht gesetzten Option
+    # nicht vom String "null" unterscheiden und liefert fuer ein leeres
+    # master_sink das Wort "null" -- als Sinkname gelesen ergibt das einen
+    # Ausgang, den es nicht gibt. `// empty` trifft die Unterscheidung.
+    # Ein Fetch, damit ein unerreichbarer Supervisor hier endet und nicht jeden
+    # Wert einzeln in seinen Default fallen laesst.
+    config=$(bashio::addon.config) \
+        || bashio::exit.nok 'Die Add-on-Optionen sind vom Supervisor nicht zu lesen.'
 
-    count=$(bashio::config 'zones | length' 0)
+    SERVER=$(jq -r '.server // empty' <<< "${config}")
+    MASTER=$(jq -r '.master_sink // empty' <<< "${config}")
+    LOG_LEVEL=$(jq -r '.log_level // "info"' <<< "${config}")
+    BUFFER_MS=$(jq -r '.buffer_ms // empty' <<< "${config}")
+
+    count=$(jq -r '.zones | length' <<< "${config}")
     for ((i = 0; i < count; i++)); do
-        ZONE_NAME[i]=$(bashio::config "zones[${i}].name" '')
-        ZONE_OUTPUT[i]=$(bashio::config "zones[${i}].output" '')
+        ZONE_NAME[i]=$(jq -r --argjson i "${i}" '.zones[$i].name // empty' <<< "${config}")
+        ZONE_OUTPUT[i]=$(jq -r --argjson i "${i}" '.zones[$i].output // empty' <<< "${config}")
         if [ -z "${ZONE_NAME[i]}" ] || [ -z "${ZONE_OUTPUT[i]}" ]; then
             bashio::exit.nok "Zone $((i + 1)) hat keinen Namen oder keinen Ausgang."
         fi
@@ -46,10 +56,7 @@ read_config() {
     fi
 
     # Eine Newline im Wert wuerde Konfigurationsschluessel der eigenen Wahl in
-    # die gerenderte Datei schreiben. Geprueft werden die Werte selbst -- der
-    # Umweg ueber ${!name} war hier falsch, weil die Zonennamen Werte sind und
-    # keine Variablennamen: "Küche" als Variablenname ist ein Syntaxfehler, und
-    # bash wiederholt ihn, solange die Schleife laeuft.
+    # die gerenderte Datei schreiben. Geprueft werden die Werte selbst.
     local value
     for value in "${SERVER}" "${MASTER}" "${LOG_LEVEL}" "${BUFFER_MS}" \
         "${ZONE_NAME[@]}" "${ZONE_OUTPUT[@]}"; do
