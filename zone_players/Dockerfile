@@ -9,7 +9,7 @@
 # own version in config.yaml, which has its own line. The upstream-bump workflow
 # raises both: this tag to the new image release, the add-on version by a patch.
 # The manifest is multi-arch, so `docker build` pulls the matching variant.
-FROM ghcr.io/music-assistant/local-audio-addon:0.1.13
+FROM ghcr.io/music-assistant/local-audio-addon:0.2.0
 
 # Disable the base image's four services. sendspin-cli starts exactly one player
 # -- not the plan here. sendspin-init decides on the bundled daemons and fails

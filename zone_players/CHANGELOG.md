@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.1.1
+
+- Base image raised to 0.2.0 (was 0.1.13). Test before merging:
+  rebuild, then check the zone sinks and one handshake per zone.
+
 ## 0.1.0
 
 Initial release.

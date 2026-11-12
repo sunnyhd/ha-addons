@@ -1,5 +1,5 @@
 name: Local Audio Zones
-version: "0.1.0"
+version: "0.1.1"
 slug: zone_players
 description: >-
   Splits a multi-channel audio output into independent stereo zones and plays
